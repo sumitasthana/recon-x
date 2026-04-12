@@ -1,0 +1,25 @@
+skills:
+  - name: baseline
+    path: builtin/baseline/SKILL.md
+    trigger_patterns: ["*"]
+    priority: 0
+
+  - name: domain_fr2052a
+    path: builtin/domain_fr2052a/SKILL.md
+    trigger_patterns: ["fr2052a", "reconciliation", "break classification"]
+    priority: 10
+
+  - name: platform_snowflake
+    path: builtin/platform_snowflake/SKILL.md
+    trigger_patterns: ["snowflake", "source extraction", "duckdb"]
+    priority: 20
+
+  - name: platform_axiomsl
+    path: builtin/platform_axiomsl/SKILL.md
+    trigger_patterns: ["axiomsl", "target extraction", "xml config"]
+    priority: 20
+
+  - name: client_bhc_alpha
+    path: builtin/client_bhc_alpha/SKILL.md
+    trigger_patterns: ["bhc alpha", "client config"]
+    priority: 30

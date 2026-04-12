@@ -1,0 +1,5 @@
+<ingestion><exclude position_id="11" mode="SILENT"/><exclude position_id="12" mode="WARN"/></ingestion>
+<fx_reconversion enabled="true"/>
+<hqla_revalidation enabled="true"/>
+<validation_rules/>
+<output_format/>

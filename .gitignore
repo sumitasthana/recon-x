@@ -1,0 +1,26 @@
+# Environment
+.env
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# Pytest
+.pytest_cache/
+
+# Runtime artifacts
+data/output/*.log
+data/snowflake/*.duckdb
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
