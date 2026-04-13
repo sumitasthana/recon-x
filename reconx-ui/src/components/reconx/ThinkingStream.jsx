@@ -1,14 +1,17 @@
 import React, { useRef, useEffect } from 'react';
-import { SKILLS } from '../../data/reconxSteps.js';
 
-const ThinkingStream = ({ messages, elapsed }) => {
+const SKILL_STYLES = {
+  Domain: { color: '#185FA5', bg: '#E6F1FB', icon: '\u2696' },
+  Platform: { color: '#0F6E56', bg: '#E1F5EE', icon: '\u2699' },
+  Client: { color: '#854F0B', bg: '#FAEEDA', icon: '\u2692' },
+};
+
+const ThinkingStream = ({ messages, elapsed, skills = [] }) => {
   const containerRef = useRef(null);
 
-  // Filter visible messages based on elapsed time
   const visibleMessages = messages.filter((msg) => msg.delay <= elapsed);
   const hasPendingMessages = visibleMessages.length < messages.length;
 
-  // Auto-scroll to bottom when visible messages change
   useEffect(() => {
     if (containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
@@ -16,7 +19,7 @@ const ThinkingStream = ({ messages, elapsed }) => {
   }, [visibleMessages.length]);
 
   const getSkillById = (skillId) => {
-    return SKILLS.find((s) => s.id === skillId);
+    return skills.find((s) => s.id === skillId);
   };
 
   return (
@@ -28,6 +31,7 @@ const ThinkingStream = ({ messages, elapsed }) => {
         {visibleMessages.map((msg, index) => {
           const isLatest = index === visibleMessages.length - 1;
           const skill = msg.skill ? getSkillById(msg.skill) : null;
+          const style = skill ? (SKILL_STYLES[skill.tier] || SKILL_STYLES.Platform) : null;
 
           return (
             <div
@@ -35,31 +39,31 @@ const ThinkingStream = ({ messages, elapsed }) => {
               className="flex items-center gap-2 transition-opacity duration-300"
               style={{ opacity: isLatest ? 1.0 : 0.55 }}
             >
-              {/* Green dot */}
               <div
                 className="w-1.5 h-1.5 rounded-full shrink-0"
                 style={{ backgroundColor: '#22c55e' }}
               />
 
-              {/* Message text */}
               <span
                 className={`text-[13px] font-mono ${
                   isLatest ? 'text-zinc-100' : 'text-zinc-300'
                 }`}
               >
                 {msg.text}
+                {isLatest && (
+                  <span className="animate-rx-cursor-blink text-[#22c55e] ml-0.5">|</span>
+                )}
               </span>
 
-              {/* Skill badge (if present) */}
-              {skill && (
+              {skill && style && (
                 <span
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium shrink-0"
                   style={{
-                    backgroundColor: skill.bg,
-                    color: skill.color,
+                    backgroundColor: style.bg,
+                    color: style.color,
                   }}
                 >
-                  <span>{skill.icon}</span>
+                  <span>{style.icon}</span>
                   <span>{skill.label}</span>
                 </span>
               )}
@@ -67,7 +71,6 @@ const ThinkingStream = ({ messages, elapsed }) => {
           );
         })}
 
-        {/* Bouncing dots for pending messages */}
         {hasPendingMessages && (
           <div className="flex items-center gap-1 pl-5 pt-1">
             {[0, 1, 2].map((i) => (

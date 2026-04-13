@@ -1,4 +1,4 @@
-"""End-to-end tests for FR 2052a Reconciliation Engine."""
+"""End-to-end tests for FR 2052a Reconciliation Engine (plugin architecture)."""
 
 import pytest
 import json
@@ -11,7 +11,8 @@ from core.state import (
     TableDelta, FXDelta, RawDeltas
 )
 from core.config import ReconConfig
-from agents.classify import _deterministic_classification, _calculate_recon_score
+from reports.fr2052a.classify import _deterministic_classification, _calculate_recon_score
+from reports.fr2052a.state import FR2052aSource, FR2052aTarget
 from skills.builtin.platform_snowflake.scripts.data_scaffold import ensure_database
 
 
@@ -24,7 +25,7 @@ def test_brk001_fx_rate():
     config = ReconConfig()
     state = ReconState(config=config)
 
-    state.source = SourceDataset(
+    state.source = FR2052aSource(
         report_date="2026-04-04",
         total_rows=500,
         table_counts={"T1": 80, "T2": 70, "T3": 60, "T4": 50, "T5": 60, "T6": 50, "T7": 40, "T8": 40, "T9": 30, "T10": 20},
@@ -36,7 +37,7 @@ def test_brk001_fx_rate():
         unsynced_leis=[]
     )
 
-    state.target = TargetDataset(
+    state.target = FR2052aTarget(
         report_date="2026-04-04",
         total_loaded=477,
         total_excluded=23,
@@ -103,7 +104,7 @@ def test_brk002_hqla():
     config = ReconConfig()
     state = ReconState(config=config)
 
-    state.source = SourceDataset(
+    state.source = FR2052aSource(
         report_date="2026-04-04",
         total_rows=500,
         table_counts={"T1": 80},
@@ -115,7 +116,7 @@ def test_brk002_hqla():
         unsynced_leis=[]
     )
 
-    state.target = TargetDataset(
+    state.target = FR2052aTarget(
         report_date="2026-04-04",
         total_loaded=500,
         total_excluded=0,
@@ -156,7 +157,7 @@ def test_brk003_counterparty():
     config = ReconConfig()
     state = ReconState(config=config)
 
-    state.source = SourceDataset(
+    state.source = FR2052aSource(
         report_date="2026-04-04",
         total_rows=500,
         table_counts={"T6": 50},
@@ -168,7 +169,7 @@ def test_brk003_counterparty():
         unsynced_leis=["LEI123", "LEI456"]
     )
 
-    state.target = TargetDataset(
+    state.target = FR2052aTarget(
         report_date="2026-04-04",
         total_loaded=488,
         total_excluded=12,
@@ -208,7 +209,7 @@ def test_brk004_silent():
     config = ReconConfig()
     state = ReconState(config=config)
 
-    state.source = SourceDataset(
+    state.source = FR2052aSource(
         report_date="2026-04-04",
         total_rows=500,
         table_counts={"T6": 50},
@@ -220,7 +221,7 @@ def test_brk004_silent():
         unsynced_leis=[]
     )
 
-    state.target = TargetDataset(
+    state.target = FR2052aTarget(
         report_date="2026-04-04",
         total_loaded=495,
         total_excluded=5,
@@ -270,7 +271,7 @@ def test_recon_score():
     config = ReconConfig()
     state = ReconState(config=config)
 
-    state.source = SourceDataset(
+    state.source = FR2052aSource(
         report_date="2026-04-04",
         total_rows=500,
         table_counts={"T1": 80, "T6": 50},
@@ -282,7 +283,7 @@ def test_recon_score():
         unsynced_leis=["LEI123"]
     )
 
-    state.target = TargetDataset(
+    state.target = FR2052aTarget(
         report_date="2026-04-04",
         total_loaded=477,
         total_excluded=23,
@@ -348,7 +349,7 @@ def test_all_breaks_detected():
     config = ReconConfig()
     state = ReconState(config=config)
 
-    state.source = SourceDataset(
+    state.source = FR2052aSource(
         report_date="2026-04-04",
         total_rows=500,
         table_counts={"T5": 60, "T2": 70, "T6": 50},
@@ -360,7 +361,7 @@ def test_all_breaks_detected():
         unsynced_leis=["LEI123", "LEI456"]
     )
 
-    state.target = TargetDataset(
+    state.target = FR2052aTarget(
         report_date="2026-04-04",
         total_loaded=477,
         total_excluded=23,
@@ -441,16 +442,18 @@ def test_skill_isolation():
     """Test that nodes have proper isolation - no cross-skill imports."""
     import re
 
-    with open("agents/extract_source.py", "r") as f:
+    # Check plugin extract_source
+    with open("reports/fr2052a/extract_source.py", "r") as f:
         source_content = f.read()
 
-    with open("agents/extract_target.py", "r") as f:
+    # Check plugin extract_target
+    with open("reports/fr2052a/extract_target.py", "r") as f:
         target_content = f.read()
 
+    # Check shared compare node
     with open("agents/compare.py", "r") as f:
         compare_content = f.read()
 
-    # Exclude docstrings from check
     source_code = re.sub(r'""".*?"""', '', source_content, flags=re.DOTALL)
     target_code = re.sub(r'""".*?"""', '', target_content, flags=re.DOTALL)
     compare_code = re.sub(r'""".*?"""', '', compare_content, flags=re.DOTALL)
@@ -495,10 +498,9 @@ def test_no_hardcoded_table_names():
         "axiomsl_output.json"
     ]
 
-    with open("agents/extract_source.py", "r") as f:
+    with open("reports/fr2052a/extract_source.py", "r") as f:
         source_content = f.read()
 
-    # Exclude docstrings AND comments from check - they're documentation, not code
     import re
     code_without_docs = re.sub(r'""".*?"""', '', source_content, flags=re.DOTALL)
     code_without_comments = re.sub(r'#.*$', '', code_without_docs, flags=re.MULTILINE)
@@ -506,7 +508,7 @@ def test_no_hardcoded_table_names():
     for table in forbidden_tables:
         assert table not in code_without_comments, f"Hardcoded table '{table}' found in extract_source.py code (outside docstrings/comments)"
 
-    with open("agents/extract_target.py", "r") as f:
+    with open("reports/fr2052a/extract_target.py", "r") as f:
         target_content = f.read()
 
     for filename in forbidden_files:
@@ -537,7 +539,7 @@ def test_client_schema_swap():
     """)
     conn.close()
 
-    with open("agents/extract_source.py", "r") as f:
+    with open("reports/fr2052a/extract_source.py", "r") as f:
         source_code = f.read()
 
     assert "sf.recon_view" in source_code, "extract_source.py should use sf.recon_view variable"
@@ -572,7 +574,6 @@ def test_structlog_output():
     import logging
     logging.shutdown()
 
-    # Read and verify log file
     with open(log_path, "r") as f:
         content = f.read()
         lines = content.strip().split('\n')
@@ -584,7 +585,7 @@ def test_structlog_output():
                 event = json.loads(line)
                 events.append(event)
             except json.JSONDecodeError:
-                pass  # Skip non-JSON lines
+                pass
 
     event_names = {e.get("event", "") for e in events}
     assert "test.node.start" in event_names
@@ -596,4 +597,25 @@ def test_structlog_output():
         assert "node" in e, "All events should have 'node' field"
         assert "report_date" in e, "All events should have 'report_date' field"
 
-    # Don't delete - file handle may still be open
+
+# ============================================================================
+# TEST 12: Plugin Registry
+# ============================================================================
+
+def test_plugin_registry():
+    """Test that plugin registry discovers and returns FR 2052a plugin."""
+    import reports
+
+    plugin = reports.get_plugin("fr2052a")
+    assert plugin.report_id == "fr2052a"
+    assert plugin.display_name == "FR 2052a Liquidity"
+
+    all_reports = reports.list_reports()
+    assert len(all_reports) >= 1
+    assert any(r["id"] == "fr2052a" for r in all_reports)
+
+
+def test_plugin_graph_build():
+    """Test that build_graph works with report_id parameter."""
+    graph = build_graph("fr2052a")
+    assert graph is not None

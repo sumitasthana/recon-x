@@ -4,29 +4,17 @@ from core.config import ReconConfig
 
 
 class SourceDataset(BaseModel):
-    """Source dataset extracted from Snowflake."""
+    """Base source dataset — shared fields across all report types."""
     report_date: str
     total_rows: int
     table_counts: dict[str, int]
     table_notionals: dict[str, float]
     fx_rates: dict[str, float]
     fx_rate_source: str
-    hqla_positions: List[dict]  # List of HQLA position dicts
-    fwd_start_candidates: List[str]  # List of position_ids
-    unsynced_leis: List[str]
-
-
-class FilterInfo(BaseModel):
-    """Ingestion filter configuration from AxiomSL config."""
-    filter_id: str
-    action: str  # SILENT, WARN, REJECT
-    log_level: str
-    condition: str
-    affected_products: List[str]
 
 
 class TargetDataset(BaseModel):
-    """Target dataset extracted from AxiomSL outputs."""
+    """Base target dataset — shared fields across all report types."""
     report_date: str
     total_loaded: int
     total_excluded: int
@@ -34,11 +22,15 @@ class TargetDataset(BaseModel):
     table_notionals: dict[str, float]
     fx_rates: dict[str, float]
     fx_rate_source: str
-    warn_exclusions: List[dict]
-    silent_filters: List[FilterInfo]
-    hqla_ref_last_refresh: Optional[str]
-    hqla_downgrades: int
-    missing_cpty_leis: List[str]
+
+
+class FilterInfo(BaseModel):
+    """Ingestion filter configuration from target system config."""
+    filter_id: str
+    action: str  # SILENT, WARN, REJECT
+    log_level: str
+    condition: str
+    affected_products: List[str]
 
 
 class TableDelta(BaseModel):
@@ -63,11 +55,10 @@ class FXDelta(BaseModel):
 
 
 class RawDeltas(BaseModel):
-    """Computed deltas between source and target datasets (Step 07).
+    """Computed deltas between source and target datasets.
 
     This is pure arithmetic on two typed datasets. Works for any
-    source-vs-target pair: Snowflake-vs-AxiomSL, Databricks-vs-AxiomSL, etc.
-    No skill imports, no LLM calls, no platform-specific logic.
+    source-vs-target pair regardless of report type.
     """
     report_date: str
 

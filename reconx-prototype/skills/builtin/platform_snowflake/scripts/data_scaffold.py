@@ -148,6 +148,22 @@ CREATE TABLE IF NOT EXISTS FACT_LIQUIDITY_POSITION (
     PRIMARY KEY (position_id, report_date)
 );
 
+--- V_RECON_SCOPE: Main reconciliation view (excludes internal metadata columns)
+CREATE OR REPLACE VIEW V_RECON_SCOPE AS
+SELECT
+    f.position_id, f.report_date, f.reporting_entity_id, f.source_system_id,
+    f.product_code, f.table_assignment, f.flow_direction, f.product_category,
+    f.counterparty_lei, f.counterparty_type_code, f.is_affiliated,
+    f.maturity_bucket_code, f.maturity_date, f.forward_start_flag, f.forward_start_date,
+    f.notional_amount_usd, f.fx_rate_to_usd, f.notional_amount_orig, f.notional_currency,
+    f.hqla_flag, f.hqla_level, f.rehypothecation_flag, f.collateral_cusip,
+    f.cusip, f.isin, f.security_type, f.credit_rating,
+    f.data_quality_flag
+FROM FACT_LIQUIDITY_POSITION f
+JOIN DIM_REPORTING_ENTITY e ON f.reporting_entity_id = e.entity_id
+WHERE e.is_active = TRUE
+  AND f.data_quality_flag != 'FAIL';
+
 --- V_BRK004_CANDIDATES: Forward start candidates view for BRK-004
 CREATE OR REPLACE VIEW V_BRK004_CANDIDATES AS
 SELECT

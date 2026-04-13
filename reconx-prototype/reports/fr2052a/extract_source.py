@@ -1,6 +1,7 @@
 import structlog
 import duckdb
-from core.state import ReconState, SourceDataset
+from core.state import ReconState
+from reports.fr2052a.state import FR2052aSource
 
 
 def extract_source_node(state: ReconState) -> dict:
@@ -84,8 +85,8 @@ def extract_source_node(state: ReconState) -> dict:
         unsynced_leis = [row[0] for row in leis]
         log.info("extract.unsynced_leis", count=len(unsynced_leis), leis=unsynced_leis)
 
-        # Build SourceDataset
-        source = SourceDataset(
+        # Build FR2052aSource (extends SourceDataset)
+        source = FR2052aSource(
             report_date=state.config.report_date,
             total_rows=total,
             table_counts=table_counts,

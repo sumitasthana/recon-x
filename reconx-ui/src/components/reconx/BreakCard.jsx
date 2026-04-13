@@ -19,7 +19,7 @@ const BreakCard = ({ brk, animDelay }) => {
   };
 
   const getDetectionMethod = () => {
-    if (brk.id === 'BRK-004') {
+    if (brk.id === 'BRK-004' || (brk.title && brk.title.toLowerCase().includes('silent'))) {
       return 'XML configuration file analysis (not visible in logs)';
     }
     return 'Automated reconciliation + AI classification';

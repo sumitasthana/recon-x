@@ -1,10 +1,12 @@
 # ReconX
 
-**Intelligent regulatory data reconciliation for FR 2052a liquidity reporting.**
+**Intelligent regulatory reconciliation — FR 2052a Liquidity · FR 2590 SCCL**
 
-ReconX is an AI-powered reconciliation engine that detects and classifies discrepancies ("breaks") between a source data platform (Snowflake) and a target regulatory reporting system (AxiomSL). It uses a four-node LangGraph pipeline driven by AWS Bedrock (Claude) and a pluggable skill system to produce structured break reports with root-cause analysis and recommended actions.
+ReconX is an AI-powered reconciliation engine that automatically detects and classifies discrepancies ("breaks") between a source data warehouse (Snowflake) and a target regulatory reporting system (AxiomSL). It drives a four-node LangGraph pipeline, grounded in domain knowledge through a pluggable skill system, and produces structured break reports with root-cause analysis and recommended remediation actions.
 
-A companion React UI (`reconx-ui`) visualises the live reconciliation run and renders the final break report in the browser.
+A companion React UI (`reconx-ui`) visualises the live run — streaming step-by-step progress, skill activations, and the final break report in the browser — for demo and monitoring use.
+
+> **Full technical reference:** [`docs/wiki/`](./docs/wiki/README.md)
 
 ---
 
@@ -21,11 +23,13 @@ A companion React UI (`reconx-ui`) visualises the live reconciliation run and re
 9. [Prerequisites](#prerequisites)
 10. [Installation](#installation)
 11. [Running the engine](#running-the-engine)
-12. [UI development server](#ui-development-server)
-13. [Testing](#testing)
-14. [Output artefacts](#output-artefacts)
-15. [Environment variables](#environment-variables)
-16. [Extending ReconX](#extending-reconx)
+12. [API server](#api-server)
+13. [UI development server](#ui-development-server)
+14. [Testing](#testing)
+15. [Output artefacts](#output-artefacts)
+16. [Environment variables](#environment-variables)
+17. [Extending ReconX](#extending-reconx)
+18. [Wiki reference](#wiki-reference)
 
 ---
 
@@ -438,3 +442,45 @@ A `.env` file placed in `reconx-prototype/` is loaded automatically via `python-
 ### Switch the LLM
 
 Update `RECONX_BEDROCK_MODEL_ID` to any Bedrock-supported model (e.g., `anthropic.claude-3-5-sonnet-20241022-v2:0`, `amazon.nova-pro-v1:0`). Adjust `max_tokens` in `llm/client.py` if needed.
+
+---
+
+## API server
+
+The FastAPI server exposes the reconciliation engine over HTTP with Server-Sent Events streaming — used by the React UI for live progress updates.
+
+```bash
+cd reconx-prototype
+uvicorn api.server:app --host 0.0.0.0 --port 8000 --reload
+```
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/reports` | List available report types |
+| `GET /api/reports/{id}/context` | UI context metadata (source systems, tables) |
+| `GET /api/reports/{id}/steps` | Step definitions for the UI progress display |
+| `POST /api/recon/run` | Run reconciliation, stream SSE progress events |
+| `GET /api/tables` | List all source database tables with row counts |
+| `GET /api/tables/{name}/schema` | Column definitions for a table |
+| `GET /api/tables/{name}/sample` | Sample rows from a table (up to 100) |
+
+See [`docs/wiki/api_server.md`](./docs/wiki/api_server.md) for full event schema documentation.
+
+---
+
+## Wiki reference
+
+Detailed per-file technical documentation lives in [`docs/wiki/`](./docs/wiki/README.md):
+
+| Wiki page | Covers |
+|-----------|--------|
+| [`core/config.py`](./docs/wiki/core_config.md) | All configuration fields, environment variables, client onboarding |
+| [`core/state.py`](./docs/wiki/core_state.md) | All Pydantic models and field-level documentation |
+| [`core/graph.py`](./docs/wiki/core_graph.md) | LangGraph pipeline wiring, plugin contract, streaming mode |
+| [`agents/compare.py`](./docs/wiki/agents_compare.md) | All six delta computations, logging events |
+| [`api/server.py`](./docs/wiki/api_server.md) | REST + SSE endpoints, CORS, error handling |
+| [`run.py`](./docs/wiki/run_py.md) | CLI flags, output file formats, exit codes |
+| [`skills/registry.yaml`](./docs/wiki/skills_registry.md) | Skill registry format, priority tiers |
+| [Break taxonomy](./docs/wiki/break_taxonomy.md) | All break types, detection logic, recon scoring formula |
+| [UI overview](./docs/wiki/reconx_ui_overview.md) | React stack, demo flow, colour palette, animations |
+| [UI components](./docs/wiki/ui_components.md) | Per-component props, state, rendering logic |

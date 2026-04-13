@@ -4,11 +4,19 @@ skills:
     trigger_patterns: ["*"]
     priority: 0
 
+  # Domain skills — now also available inside report plugins
   - name: domain_fr2052a
     path: builtin/domain_fr2052a/SKILL.md
+    plugin_path: ../reports/fr2052a/skill/SKILL.md
     trigger_patterns: ["fr2052a", "reconciliation", "break classification"]
     priority: 10
 
+  - name: domain_fr2590
+    path: ../reports/fr2590/skill/SKILL.md
+    trigger_patterns: ["fr2590", "sccl", "single-counterparty credit limits", "counterparty exposure"]
+    priority: 10
+
+  # Platform skills — shared across all reports
   - name: platform_snowflake
     path: builtin/platform_snowflake/SKILL.md
     trigger_patterns: ["snowflake", "source extraction", "duckdb"]
@@ -19,6 +27,7 @@ skills:
     trigger_patterns: ["axiomsl", "target extraction", "xml config"]
     priority: 20
 
+  # Client skills — shared across all reports
   - name: client_bhc_alpha
     path: builtin/client_bhc_alpha/SKILL.md
     trigger_patterns: ["bhc alpha", "client config"]

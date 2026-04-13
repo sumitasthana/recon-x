@@ -1,0 +1,20 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "reconx-ui",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5173,
+      "cwd": "reconx-ui",
+      "autoPort": true
+    },
+    {
+      "name": "reconx-api",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "uvicorn", "api.server:app", "--reload", "--host", "0.0.0.0", "--port", "8000"],
+      "port": 8000,
+      "cwd": "reconx-prototype"
+    }
+  ]
+}

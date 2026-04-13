@@ -8,7 +8,7 @@ from llm.client import get_llm
 def classify_node(state: ReconState) -> dict:
     """Classify breaks using LLM with skill-based prompting.
 
-    1. Load skills/builtin/domain_fr2052a/SKILL.md as system context
+    1. Load reports/fr2052a/skill/SKILL.md as system context
     2. Build prompt with RawDeltas + key fields from source/target
     3. Call ChatBedrock (from llm.client.get_llm)
     4. Parse JSON response into Break objects
@@ -24,7 +24,7 @@ def classify_node(state: ReconState) -> dict:
         raise ValueError("Deltas, source, and target must be present in state")
 
     # 1. Load FR 2052a domain skill as system context
-    skill_path = os.path.join(os.path.dirname(__file__), "..", "skills", "builtin", "domain_fr2052a", "SKILL.md")
+    skill_path = os.path.join(os.path.dirname(__file__), "skill", "SKILL.md")
     system_context = _load_skill(skill_path)
     log.info("skill.loaded", skill="domain_fr2052a", chars=len(system_context))
 
@@ -63,7 +63,6 @@ def _load_skill(skill_path: str) -> str:
         with open(skill_path, 'r') as f:
             return f.read()
     except FileNotFoundError:
-        # Return minimal FR 2052a context if file not found
         return """# FR 2052a Domain Knowledge
 
 Break Categories:
@@ -91,7 +90,6 @@ def _build_classification_prompt(state: ReconState, system_context: str) -> str:
     s = state.source
     t = state.target
 
-    # Extract key fields for context
     key_fields = {
         "source_total_rows": s.total_rows,
         "target_total_loaded": t.total_loaded,
@@ -102,13 +100,19 @@ def _build_classification_prompt(state: ReconState, system_context: str) -> str:
         "silent_filter_count": d.silent_filter_count,
         "silent_filter_exposure_pct": round(d.silent_filter_exposure_pct, 2),
         "orphan_count": d.orphan_count,
-        "hqla_downgrades": t.hqla_downgrades,
-        "missing_leis": len(t.missing_cpty_leis),
-        "unsynced_leis": len(s.unsynced_leis),
-        "fx_rate_source": t.fx_rate_source,
     }
 
-    # Add table-level issues
+    # Access FR 2052a-specific fields safely
+    hqla_downgrades = getattr(t, 'hqla_downgrades', 0)
+    missing_cpty_leis = getattr(t, 'missing_cpty_leis', [])
+    unsynced_leis = getattr(s, 'unsynced_leis', [])
+    fx_rate_source = getattr(t, 'fx_rate_source', 'unknown')
+
+    key_fields["hqla_downgrades"] = hqla_downgrades
+    key_fields["missing_leis"] = len(missing_cpty_leis)
+    key_fields["unsynced_leis"] = len(unsynced_leis)
+    key_fields["fx_rate_source"] = fx_rate_source
+
     table_issues = []
     for td in d.table_deltas:
         if abs(td.row_delta) > 0 or abs(td.notional_delta) > 0.01:
@@ -119,10 +123,9 @@ def _build_classification_prompt(state: ReconState, system_context: str) -> str:
                 "coverage_pct": round(td.coverage_pct, 2)
             })
 
-    # Add FX issues
     fx_issues = []
     for fd in d.fx_deltas:
-        if abs(fd.delta_pct) > 0.1:  # > 0.1% divergence
+        if abs(fd.delta_pct) > 0.1:
             fx_issues.append({
                 "currency": fd.currency_pair,
                 "source_rate": fd.source_rate,
@@ -149,9 +152,9 @@ Table-Level Issues (row/notional mismatches):
 FX Rate Issues (>0.1% divergence):
 {json.dumps(fx_issues, indent=2)}
 
-Missing/Out-of-Sync LEIs: {t.missing_cpty_leis}
-Silent Filters Applied: {len(t.silent_filters)}
-HQLA Downgrades: {t.hqla_downgrades}
+Missing/Out-of-Sync LEIs: {missing_cpty_leis}
+Silent Filters Applied: {d.silent_filter_count}
+HQLA Downgrades: {hqla_downgrades}
 
 ---
 
@@ -205,7 +208,6 @@ def _classify_with_fallback(state: ReconState, prompt: str, log) -> tuple:
     config = state.config
 
     try:
-        # Try LLM classification
         llm = get_llm(config)
         log.info("llm.classify.start", model=config.bedrock_model_id)
 
@@ -214,9 +216,7 @@ def _classify_with_fallback(state: ReconState, prompt: str, log) -> tuple:
 
         log.info("llm.classify.complete", response_chars=len(llm_output))
 
-        # Parse JSON response
         try:
-            # Extract JSON from response (handle markdown code blocks)
             json_text = llm_output
             if "```json" in llm_output:
                 json_text = llm_output.split("```json")[1].split("```")[0]
@@ -254,26 +254,29 @@ def _classify_with_fallback(state: ReconState, prompt: str, log) -> tuple:
 
 
 def _deterministic_classification(state: ReconState) -> list:
-    """Deterministic break classification using standardized 4-break taxonomy.
-
-    Standardized break IDs (both LLM and deterministic paths):
-    - BRK-001: FX_RATE_SOURCE_MISMATCH
-    - BRK-002: HQLA_REF_STALE
-    - BRK-003: CPTY_REF_SYNC_LAG
-    - BRK-004: SILENT_EXCLUSION
-    """
+    """Deterministic break classification using standardized 4-break taxonomy."""
     breaks = []
     s = state.source
     t = state.target
     d = state.deltas
 
+    # Access FR 2052a-specific fields safely via getattr
+    s_fx_rate_source = getattr(s, 'fx_rate_source', 'unknown')
+    t_fx_rate_source = getattr(t, 'fx_rate_source', 'unknown')
+    s_unsynced_leis = getattr(s, 'unsynced_leis', [])
+    t_missing_cpty_leis = getattr(t, 'missing_cpty_leis', [])
+    t_hqla_downgrades = getattr(t, 'hqla_downgrades', 0)
+    t_hqla_ref_last_refresh = getattr(t, 'hqla_ref_last_refresh', None)
+    t_silent_filters = getattr(t, 'silent_filters', [])
+    t_warn_exclusions = getattr(t, 'warn_exclusions', [])
+    s_fwd_start_candidates = getattr(s, 'fwd_start_candidates', [])
+
     # BRK-001: FX rate source mismatch
-    if s.fx_rate_source != t.fx_rate_source:
+    if s_fx_rate_source != t_fx_rate_source:
         fx_impact = sum(
             abs(td.notional_delta) for td in d.table_deltas
             if td.notional_delta != 0
         )
-        # Check for any FX divergence
         has_fx_divergence = any(abs(fd.delta_pct) > 0.01 for fd in d.fx_deltas)
         if fx_impact > 0 or has_fx_divergence:
             breaks.append(Break(
@@ -281,7 +284,7 @@ def _deterministic_classification(state: ReconState) -> list:
                 category="FX_RATE_SOURCE_MISMATCH",
                 severity="HIGH" if fx_impact > 1000000 else "MEDIUM",
                 table_assignment="T5",
-                description=f"FX rate source divergence: source uses {s.fx_rate_source}, target uses {t.fx_rate_source}",
+                description=f"FX rate source divergence: source uses {s_fx_rate_source}, target uses {t_fx_rate_source}",
                 source_count=None,
                 target_count=None,
                 notional_impact_usd=fx_impact if fx_impact > 0 else None,
@@ -290,44 +293,42 @@ def _deterministic_classification(state: ReconState) -> list:
             ))
 
     # BRK-002: HQLA reference stale
-    if t.hqla_downgrades > 0:
+    if t_hqla_downgrades > 0:
         breaks.append(Break(
             break_id="BRK-002",
             category="HQLA_REF_STALE",
             severity="HIGH",
             table_assignment="T2",
-            description=f"HQLA reference stale (last refresh: {t.hqla_ref_last_refresh}). {t.hqla_downgrades} positions downgraded.",
-            source_count=t.hqla_downgrades,
-            target_count=t.hqla_downgrades,
+            description=f"HQLA reference stale (last refresh: {t_hqla_ref_last_refresh}). {t_hqla_downgrades} positions downgraded.",
+            source_count=t_hqla_downgrades,
+            target_count=t_hqla_downgrades,
             notional_impact_usd=None,
             root_cause="HQLA reference data not refreshed in target system",
             recommended_action="Review HQLA reference data refresh; check CUSIP mapping; validate eligibility rules"
         ))
 
     # BRK-003: Counterparty sync lag
-    overlap = set(s.unsynced_leis) & set(t.missing_cpty_leis)
-    if overlap or (s.unsynced_leis and t.missing_cpty_leis):
-        # Count warn exclusions for UNMAPPED_CPTY
-        warn_count = len(t.warn_exclusions) if t.warn_exclusions else 12
+    overlap = set(s_unsynced_leis) & set(t_missing_cpty_leis)
+    if overlap or (s_unsynced_leis and t_missing_cpty_leis):
+        warn_count = len(t_warn_exclusions) if t_warn_exclusions else 12
         breaks.append(Break(
             break_id="BRK-003",
             category="CPTY_REF_SYNC_LAG",
             severity="MEDIUM",
             table_assignment="T6",
-            description=f"{len(overlap) if overlap else len(s.unsynced_leis)} counterparty LEIs in source but not in target reference. {warn_count} positions excluded.",
-            source_count=len(s.unsynced_leis),
-            target_count=len(t.missing_cpty_leis),
+            description=f"{len(overlap) if overlap else len(s_unsynced_leis)} counterparty LEIs in source but not in target reference. {warn_count} positions excluded.",
+            source_count=len(s_unsynced_leis),
+            target_count=len(t_missing_cpty_leis),
             notional_impact_usd=None,
             root_cause="Counterparty LEI not synced with AxiomSL counterparty master",
             recommended_action="Validate counterparty master sync; investigate source system record"
         ))
 
     # BRK-004: Silent exclusion
-    if t.silent_filters and len(t.silent_filters) > 0:
-        # Count affected positions from deltas
+    if t_silent_filters and len(t_silent_filters) > 0:
         silent_count = d.silent_filter_count
         if silent_count == 0:
-            silent_count = len(s.fwd_start_candidates) if s.fwd_start_candidates else 11
+            silent_count = len(s_fwd_start_candidates) if s_fwd_start_candidates else 11
         breaks.append(Break(
             break_id="BRK-004",
             category="SILENT_EXCLUSION",
@@ -348,33 +349,27 @@ def _calculate_recon_score(deltas, breaks: list) -> float:
     """Calculate reconciliation score using formula from skill."""
     base_score = 100.0
 
-    # Row delta penalty
     if deltas.total_row_delta < 0:
         base_score -= 10.0
 
-    # Notional delta penalty (> 1%)
     for td in deltas.table_deltas:
         if td.source_notional > 0:
             notional_delta_pct = abs(td.notional_delta) / td.source_notional * 100
             if notional_delta_pct > 1.0:
                 base_score -= 15.0
-                break  # Only apply once
+                break
 
-    # Silent filter penalty
     silent_count = sum(1 for b in breaks if b.category == "SILENT_EXCLUSION")
     if silent_count > 0:
         base_score -= 25.0 * silent_count
 
-    # HQLA downgrade penalty
     hqla_count = sum(1 for b in breaks if b.category == "HQLA_REF_STALE")
     if hqla_count > 0:
         base_score -= 20.0 * hqla_count
 
-    # Missing LEI penalty
     lei_count = sum(1 for b in breaks if b.break_id == "BRK-003")
     base_score -= 5.0 * lei_count
 
-    # Orphan penalty
     if deltas.orphan_count > 0:
         base_score -= 10.0
 

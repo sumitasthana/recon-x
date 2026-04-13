@@ -1,15 +1,38 @@
 import React from 'react';
-import { BREAKS } from '../../data/reconxSteps.js';
 import BreakCard from './BreakCard';
 import ScoreRing from './ScoreRing';
 
-const BreakReport = ({ visible }) => {
-  if (!visible) return null;
+const SEVERITY_COLORS = {
+  CRITICAL: '#E24B4A',
+  HIGH: '#E24B4A',
+  MEDIUM: '#BA7517',
+  LOW: '#22c55e',
+};
+
+const BreakReport = ({ report, visible }) => {
+  if (!visible || !report) return null;
+
+  const breaks = (report.breaks || []).map((b) => ({
+    id: b.break_id,
+    title: b.category.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()),
+    severity: b.severity,
+    area: b.table_assignment ? `Table ${b.table_assignment}` : 'Multiple tables',
+    headline: b.description,
+    detail: `${b.root_cause}. ${b.recommended_action}`,
+    impact: b.notional_impact_usd
+      ? `$${(b.notional_impact_usd / 1e6).toFixed(1)}M`
+      : b.source_count
+      ? `${b.source_count} affected`
+      : 'Coverage gap',
+    positions: b.source_count || 0,
+    root: b.root_cause,
+    color: SEVERITY_COLORS[b.severity] || SEVERITY_COLORS.MEDIUM,
+  }));
 
   const stats = [
-    { label: 'Source positions', value: '500' },
-    { label: 'Target loaded', value: '477' },
-    { label: 'Breaks found', value: '4', highlight: true },
+    { label: 'Total breaks', value: String(report.total_breaks), highlight: report.total_breaks > 0 },
+    { label: 'Method', value: report.method === 'DETERMINISTIC_FALLBACK' ? 'Rules' : 'AI', highlight: false },
+    { label: 'Report date', value: report.report_date, highlight: false },
   ];
 
   return (
@@ -17,20 +40,14 @@ const BreakReport = ({ visible }) => {
       className="mt-8"
       style={{ animation: 'rx-fadein 0.5s ease-out' }}
     >
-      {/* Horizontal rule */}
       <div className="h-px bg-surface-border mb-6" />
 
-      {/* Findings heading */}
       <h2 className="text-[20px] font-medium text-zinc-100 mb-6">Findings</h2>
 
-      {/* Metric grid - 4 columns desktop, 2 columns mobile */}
+      {/* Metric grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        {/* Stat cards */}
         {stats.map((stat) => (
-          <div
-            key={stat.label}
-            className="bg-surface rounded-lg px-4 py-4"
-          >
+          <div key={stat.label} className="bg-surface rounded-lg px-4 py-4">
             <div className="text-[12px] text-zinc-500">{stat.label}</div>
             <div
               className={`text-[24px] font-medium ${
@@ -42,45 +59,23 @@ const BreakReport = ({ visible }) => {
           </div>
         ))}
 
-        {/* Score ring */}
         <div className="flex justify-center">
-          <ScoreRing score={60} show={visible} />
+          <ScoreRing score={Math.round(report.recon_score)} show={visible} />
         </div>
       </div>
 
+      {/* Summary */}
+      {report.summary && (
+        <div className="bg-surface rounded-lg px-4 py-3 mb-4 text-[13px] text-zinc-400">
+          {report.summary}
+        </div>
+      )}
+
       {/* Break cards */}
       <div className="space-y-3">
-        {BREAKS.map((brk, index) => (
-          <BreakCard
-            key={brk.id}
-            brk={brk}
-            animDelay={index * 0.12}
-          />
+        {breaks.map((brk, index) => (
+          <BreakCard key={brk.id} brk={brk} animDelay={index * 0.12} />
         ))}
-      </div>
-
-      {/* What made this possible callout */}
-      <div
-        className="mt-6 bg-surface-card rounded-lg p-4"
-        style={{
-          border: '0.5px solid #27272a',
-          borderLeft: '2px solid #534AB7',
-        }}
-      >
-        <h3 className="text-[14px] font-medium text-zinc-100 mb-2">
-          What made this possible
-        </h3>
-        <p className="text-[13px] text-zinc-500 leading-relaxed">
-          ReconX found break #4 (silent exclusion) by reading the regulatory
-          engine's XML configuration files directly — something no human operator
-          would routinely do. The 11 excluded positions leave zero trace in
-          application logs. Traditional reconciliation tools that rely on log
-          monitoring would never surface this finding. The agent's{' '}
-          <span className="font-medium text-zinc-100">
-            target system intelligence
-          </span>{' '}
-          skill taught it where to look beyond the obvious.
-        </p>
       </div>
     </div>
   );

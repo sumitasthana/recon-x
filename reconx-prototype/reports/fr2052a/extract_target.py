@@ -3,7 +3,8 @@ import os
 import re
 import json
 from lxml import etree
-from core.state import ReconState, TargetDataset, FilterInfo
+from core.state import ReconState, FilterInfo
+from reports.fr2052a.state import FR2052aTarget
 from llm.client import get_llm
 
 
@@ -48,8 +49,8 @@ def extract_target_node(state: ReconState) -> dict:
              table_count=len(json_data.get('table_notionals', {})),
              hqla_downgrades=json_data.get('hqla_downgrades', 0))
 
-    # Build TargetDataset
-    target = TargetDataset(
+    # Build FR2052aTarget (extends TargetDataset)
+    target = FR2052aTarget(
         report_date=state.config.report_date,
         total_loaded=log_data.get('loaded', 0),
         total_excluded=log_data.get('excluded', 0),
@@ -72,10 +73,7 @@ def extract_target_node(state: ReconState) -> dict:
 
 
 def _parse_log_file(log_path: str) -> dict:
-    """Parse AxiomSL app log with regex.
-
-    Extracts: loaded count, excluded count, warn exclusions, FX rates
-    """
+    """Parse AxiomSL app log with regex."""
     data = {
         'loaded': 0,
         'excluded': 0,
@@ -89,8 +87,6 @@ def _parse_log_file(log_path: str) -> dict:
     with open(log_path, 'r') as f:
         content = f.read()
 
-    # Regex patterns for log extraction
-    # Loaded count: "Loaded: 477. Excluded: 23."
     loaded_match = re.search(r'Loaded:\s*(\d+)', content)
     if loaded_match:
         data['loaded'] = int(loaded_match.group(1))
@@ -99,13 +95,11 @@ def _parse_log_file(log_path: str) -> dict:
     if excluded_match:
         data['excluded'] = int(excluded_match.group(1))
 
-    # FX rates: "EUR/USD: 1.0842"
     fx_pattern = r'([A-Z]{3})/([A-Z]{3}):\s*([\d.]+)'
     for match in re.finditer(fx_pattern, content):
         pair = f"{match.group(1)}/{match.group(2)}"
         data['fx_rates'][pair] = float(match.group(3))
 
-    # Warn exclusions: "WARN_EXCLUSION: position_id=N"
     warn_pattern = r'WARN_EXCLUSION:\s*position_id=(\d+)'
     for match in re.finditer(warn_pattern, content):
         data['warn_exclusions'].append({
@@ -117,14 +111,7 @@ def _parse_log_file(log_path: str) -> dict:
 
 
 def _parse_xml_config(config_path: str, config) -> dict:
-    """Parse AxiomSL XML config with hybrid lxml + LLM approach.
-
-    1. Use lxml to split 5 concatenated configs into sections
-    2. Use LLM to interpret semantics from each section (robust to format variations)
-    3. Keep regex for LEI extraction as backup
-
-    Returns: filters, rate source, HQLA ref date, missing LEIs
-    """
+    """Parse AxiomSL XML config with hybrid lxml + LLM approach."""
     data = {
         'silent_filters': [],
         'fx_rate_source': 'unknown',
@@ -138,15 +125,12 @@ def _parse_xml_config(config_path: str, config) -> dict:
     with open(config_path, 'r') as f:
         raw_xml = f.read()
 
-    # Split 5 concatenated XML configs using lxml
-    # Wrap and parse to extract individual root elements
     wrapped = f"<root>{raw_xml}</root>"
     log = structlog.get_logger()
 
     try:
         root = etree.fromstring(wrapped.encode('utf-8'))
 
-        # Extract each top-level section
         sections = {}
         for child in root:
             tag = child.tag.lower()
@@ -159,7 +143,6 @@ def _parse_xml_config(config_path: str, config) -> dict:
             elif 'lei' in tag or 'counterparty' in tag:
                 sections['counterparty'] = etree.tostring(child, encoding='unicode')
 
-        # Use LLM to interpret IngestionFilters section
         if 'ingestion' in sections:
             try:
                 llm = get_llm(config)
@@ -179,7 +162,6 @@ Return ONLY a JSON array. No markdown. Example:
                 response = llm.invoke(prompt)
                 llm_output = response.content if hasattr(response, 'content') else str(response)
 
-                # Parse LLM JSON response
                 try:
                     filters_data = json.loads(llm_output)
                     for f in filters_data:
@@ -192,14 +174,12 @@ Return ONLY a JSON array. No markdown. Example:
                         ))
                 except json.JSONDecodeError:
                     log.warning("llm.xml_parse.json_error", response=llm_output[:200])
-                    # Fallback to regex extraction
                     _extract_filters_fallback(sections['ingestion'], data)
 
             except Exception as e:
                 log.warning("llm.xml_parse.error", error=str(e))
                 _extract_filters_fallback(sections['ingestion'], data)
 
-        # Use LLM to interpret FX section
         if 'fx' in sections:
             try:
                 llm = get_llm(config)
@@ -221,14 +201,12 @@ Return only JSON. Example: {{"fx_rate_source": "ECB/BOE_Fixing_2026-04-04"}}"""
                     fx_data = json.loads(llm_output)
                     data['fx_rate_source'] = fx_data.get('fx_rate_source', 'unknown')
                 except json.JSONDecodeError:
-                    # Fallback: search for fx_rate_source element
                     fx_match = re.search(r'fx_rate_source[^>]*>([^<]+)', sections['fx'])
                     if fx_match:
                         data['fx_rate_source'] = fx_match.group(1)
             except Exception as e:
                 log.warning("llm.fx_parse.error", error=str(e))
 
-        # Use LLM to interpret HQLA section
         if 'hqla' in sections:
             try:
                 llm = get_llm(config)
@@ -250,14 +228,12 @@ Return only JSON. Example: {{"hqla_ref_last_refresh": "2026-04-03T22:00:00Z"}}""
                     hqla_data = json.loads(llm_output)
                     data['hqla_ref_last_refresh'] = hqla_data.get('hqla_ref_last_refresh')
                 except json.JSONDecodeError:
-                    # Fallback: search for hqla_reference_refresh
                     hqla_match = re.search(r'hqla_reference_refresh[^>]*>([^<]+)', sections['hqla'])
                     if hqla_match:
                         data['hqla_ref_last_refresh'] = hqla_match.group(1)
             except Exception as e:
                 log.warning("llm.hqla_parse.error", error=str(e))
 
-        # Use regex for LEI extraction (reliable pattern)
         if 'counterparty' in sections:
             lei_matches = re.findall(r'lei[=\s]+["\']?([A-Z0-9]{20})', sections['counterparty'], re.IGNORECASE)
             data['missing_cpty_leis'] = lei_matches
@@ -270,7 +246,6 @@ Return only JSON. Example: {{"hqla_ref_last_refresh": "2026-04-03T22:00:00Z"}}""
 
 def _extract_filters_fallback(xml_section: str, data: dict):
     """Fallback regex-based filter extraction when LLM fails."""
-    # Extract filter elements with regex
     filter_matches = re.findall(
         r'<filter[^>]*id=["\']([^"\']+)["\'][^>]*action=["\']([^"\']+)["\'][^>]*log_level=["\']([^"\']+)["\'][^>]*>',
         xml_section, re.DOTALL
@@ -279,14 +254,12 @@ def _extract_filters_fallback(xml_section: str, data: dict):
     for match in filter_matches:
         filter_id, action, log_level = match
         if action == 'SILENT':
-            # Extract condition text
             cond_match = re.search(
                 rf'<filter[^>]*id=["\']{re.escape(filter_id)}["\'][^>]*>.*?<condition[^>]*>(.*?)</condition>',
                 xml_section, re.DOTALL | re.IGNORECASE
             )
             condition = cond_match.group(1) if cond_match else ''
 
-            # Extract products
             products = []
             prod_section = re.search(
                 rf'<filter[^>]*id=["\']{re.escape(filter_id)}["\'][^>]*>.*?<affected_products>(.*?)</affected_products>',
@@ -305,10 +278,7 @@ def _extract_filters_fallback(xml_section: str, data: dict):
 
 
 def _parse_json_output(output_path: str) -> dict:
-    """Parse AxiomSL JSON output.
-
-    Extracts: table counts, table notionals, HQLA downgrades
-    """
+    """Parse AxiomSL JSON output."""
     data = {
         'table_counts': {},
         'table_notionals': {},
@@ -322,7 +292,6 @@ def _parse_json_output(output_path: str) -> dict:
         content = f.read()
 
     try:
-        # Try to parse as JSON first
         json_data = json.loads(content)
 
         if isinstance(json_data, dict):
@@ -330,7 +299,6 @@ def _parse_json_output(output_path: str) -> dict:
             data['table_notionals'] = json_data.get('table_notionals', {})
             data['hqla_downgrades'] = json_data.get('hqla_downgrades', 0)
         elif isinstance(json_data, list):
-            # Parse CSV-like JSON array
             for row in json_data:
                 if isinstance(row, dict):
                     table = row.get('table_assignment')
@@ -339,12 +307,10 @@ def _parse_json_output(output_path: str) -> dict:
                         notional = row.get('notional_amount_usd', 0)
                         data['table_notionals'][table] = data['table_notionals'].get(table, 0) + notional
 
-                    # Check for HQLA downgrade
                     if row.get('hqla_downgrade_flag') == 'Y':
                         data['hqla_downgrades'] += 1
 
     except json.JSONDecodeError:
-        # If not valid JSON, try to parse as CSV
         import csv
         try:
             with open(output_path, 'r', newline='') as f:
@@ -360,7 +326,6 @@ def _parse_json_output(output_path: str) -> dict:
                             log = structlog.get_logger()
                             log.warning("csv.notional_parse_error", error=str(e), table=table)
 
-                    # Check for HQLA downgrade
                     if row.get('hqla_downgrade_flag') == 'Y':
                         data['hqla_downgrades'] += 1
         except Exception as e:

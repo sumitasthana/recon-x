@@ -81,9 +81,9 @@ def compare_node(state: ReconState) -> dict:
     log.info("compare.fx_deltas", fx_count=len(fx_deltas))
 
     # 4. Silent filter exposure (invisible from logs)
-    silent_filter_count = len(target.silent_filters)
-    # Estimate affected positions: sum of positions excluded that are SILENT
-    # For simplicity, assume excluded positions are silent filter hits
+    # silent_filters is report-specific (FR 2052a); use getattr for generic access
+    silent_filters = getattr(target, 'silent_filters', [])
+    silent_filter_count = len(silent_filters) if silent_filters else 0
     silent_filter_exposure_pct = (target.total_excluded / total_source_rows * 100) if total_source_rows > 0 else 0.0
 
     log.info("compare.silent_exposure",

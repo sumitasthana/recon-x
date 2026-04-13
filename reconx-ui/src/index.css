@@ -61,6 +61,50 @@ body {
   }
 }
 
+@keyframes rx-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes rx-check-draw {
+  from {
+    stroke-dashoffset: 20;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes rx-breathe {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes rx-cursor-blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes rx-complete-flash {
+  0% {
+    border-color: #22c55e;
+    box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.2);
+  }
+  100% {
+    border-color: #27272a;
+    box-shadow: none;
+  }
+}
+
 /* Component utility classes */
 @layer components {
   .card {

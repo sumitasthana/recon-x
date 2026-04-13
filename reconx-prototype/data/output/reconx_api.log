@@ -1,0 +1,274 @@
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-12T21:51:36.326704Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-12T21:51:36.327161Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-12T21:51:36.340197Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-12T21:51:45.510308Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-12T21:51:45.512665Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-12T21:51:45.519769Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "total_rows": 1000, "event": "extract.total_rows", "level": "info", "timestamp": "2026-04-12T21:51:45.543831Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "table_counts": {"T11": 80, "T3": 79, "T7": 81, "T8": 69, "T5": 91, "T12": 65, "T2": 64, "T10": 67, "T13": 63, "T14": 70, "T1": 68, "T4": 70, "T9": 69, "T6": 64}, "event": "extract.table_counts", "level": "info", "timestamp": "2026-04-12T21:51:45.549123Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "table_notionals": {"T14": "Decimal('2412396530.610000')", "T7": "Decimal('3417534788.380000')", "T8": "Decimal('2964061206.340000')", "T5": "Decimal('3718750077.230000')", "T12": "Decimal('2955292648.250000')", "T2": "Decimal('2871702670.280000')", "T9": "Decimal('3167552802.020000')", "T6": "Decimal('2586682032.170000')", "T10": "Decimal('3363048470.420000')", "T13": "Decimal('2801627691.620000')", "T1": "Decimal('2996600726.060000')", "T4": "Decimal('2853265371.890000')", "T11": "Decimal('3564356515.220000')", "T3": "Decimal('3191075139.240000')"}, "event": "extract.table_notionals", "level": "info", "timestamp": "2026-04-12T21:51:45.553442Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "fx_rates": {"EUR": "Decimal('1.0825000000')", "GBP": "Decimal('1.2650000000')", "JPY": "Decimal('0.0067000000')", "CAD": "Decimal('0.7250000000')", "AUD": "Decimal('0.6530000000')", "CHF": "Decimal('1.1350000000')", "CNY": "Decimal('0.1385000000')", "MXN": "Decimal('0.0490000000')"}, "fx_rate_source": "BLOOMBERG_BFIX_EOD", "event": "extract.fx_rates", "level": "info", "timestamp": "2026-04-12T21:51:45.555277Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "count": 240, "event": "extract.hqla_positions", "level": "info", "timestamp": "2026-04-12T21:51:45.558313Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "count": 0, "event": "extract.fwd_start_candidates", "level": "info", "timestamp": "2026-04-12T21:51:45.559236Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "count": 2, "leis": ["NEWCP001XXXXXXXXXXXX", "NEWCP002XXXXXXXXXXXX"], "event": "extract.unsynced_leis", "level": "info", "timestamp": "2026-04-12T21:51:45.560126Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "total_rows": 1000, "table_count": 14, "event": "node.complete", "level": "info", "timestamp": "2026-04-12T21:51:45.560392Z"}
+{"node": "extract_target", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-12T21:51:45.565897Z"}
+{"node": "extract_target", "report_date": "2026-04-04", "config": "data/axiomsl/fr2052a_config.xml", "log": "data/axiomsl/fr2052a_processing.log", "output": "data/axiomsl/fr2052a_target.csv", "event": "extract.files", "level": "info", "timestamp": "2026-04-12T21:51:45.566027Z"}
+{"node": "extract_target", "report_date": "2026-04-04", "loaded": 0, "excluded": 0, "fx_rates_count": 0, "event": "extract.log.complete", "level": "info", "timestamp": "2026-04-12T21:51:45.566177Z"}
+{"node": "extract_target", "section": "IngestionFilters", "model": "anthropic.claude-3-haiku-20240307-v1:0", "event": "llm.xml_parse", "level": "info", "timestamp": "2026-04-12T21:51:45.934462Z"}
+{"node": "extract_target", "section": "FXConfig", "model": "anthropic.claude-3-haiku-20240307-v1:0", "event": "llm.xml_parse", "level": "info", "timestamp": "2026-04-12T21:51:47.444727Z"}
+{"node": "extract_target", "section": "HQLAConfig", "model": "anthropic.claude-3-haiku-20240307-v1:0", "event": "llm.xml_parse", "level": "info", "timestamp": "2026-04-12T21:51:48.153395Z"}
+{"node": "extract_target", "report_date": "2026-04-04", "filters_count": 2, "missing_leis_count": 0, "event": "extract.xml.complete", "level": "info", "timestamp": "2026-04-12T21:51:48.762703Z"}
+{"node": "extract_target", "report_date": "2026-04-04", "table_count": 10, "hqla_downgrades": 0, "event": "extract.json.complete", "level": "info", "timestamp": "2026-04-12T21:51:48.768107Z"}
+{"node": "extract_target", "report_date": "2026-04-04", "total_loaded": 0, "total_excluded": 0, "hqla_downgrades": 0, "event": "node.complete", "level": "info", "timestamp": "2026-04-12T21:51:48.768225Z"}
+{"node": "compare", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-12T21:51:48.769034Z"}
+{"node": "compare", "report_date": "2026-04-04", "source_rows": 1000, "target_rows": 0, "delta": -1000, "delta_pct": -100.0, "event": "compare.row_delta", "level": "info", "timestamp": "2026-04-12T21:51:48.769099Z"}
+{"node": "compare", "report_date": "2026-04-04", "table_count": 14, "event": "compare.table_deltas", "level": "info", "timestamp": "2026-04-12T21:51:48.769182Z"}
+{"node": "compare", "report_date": "2026-04-04", "fx_count": 8, "event": "compare.fx_deltas", "level": "info", "timestamp": "2026-04-12T21:51:48.769229Z"}
+{"node": "compare", "report_date": "2026-04-04", "silent_count": 2, "exposure_pct": 0.0, "event": "compare.silent_exposure", "level": "info", "timestamp": "2026-04-12T21:51:48.769251Z"}
+{"node": "compare", "report_date": "2026-04-04", "overall_coverage_pct": 0.0, "orphan_count": 0, "event": "compare.coverage", "level": "info", "timestamp": "2026-04-12T21:51:48.769274Z"}
+{"node": "compare", "report_date": "2026-04-04", "row_delta": -1000, "coverage_pct": 0.0, "silent_filters": 2, "event": "node.complete", "level": "info", "timestamp": "2026-04-12T21:51:48.769303Z"}
+{"node": "classify", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-12T21:51:48.770139Z"}
+{"node": "classify", "report_date": "2026-04-04", "skill": "domain_fr2052a", "chars": 4947, "event": "skill.loaded", "level": "info", "timestamp": "2026-04-12T21:51:48.770649Z"}
+{"node": "classify", "report_date": "2026-04-04", "model": "anthropic.claude-3-haiku-20240307-v1:0", "event": "llm.classify.start", "level": "info", "timestamp": "2026-04-12T21:51:48.959233Z"}
+{"node": "classify", "report_date": "2026-04-04", "response_chars": 2303, "event": "llm.classify.complete", "level": "info", "timestamp": "2026-04-12T21:51:54.297053Z"}
+{"node": "classify", "report_date": "2026-04-04", "method": "LLM_CLASSIFIED", "breaks_count": 4, "event": "classify.method", "level": "info", "timestamp": "2026-04-12T21:51:54.297319Z"}
+{"node": "classify", "report_date": "2026-04-04", "total_breaks": 4, "recon_score": 25.0, "method": "LLM_CLASSIFIED", "event": "node.complete", "level": "info", "timestamp": "2026-04-12T21:51:54.299570Z"}
+{"run": "api", "report_type": "fr2052a", "report_date": "2026-04-04", "event": "api.recon.complete", "level": "info", "timestamp": "2026-04-12T21:51:54.301271Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:57:12.592638Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:57:12.593042Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:58:12.055455Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:58:12.055656Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:58:12.093805Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:58:12.094087Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:58:13.972875Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:58:13.973095Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:58:13.973818Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:58:13.973969Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:58:28.641525Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:58:28.642503Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:58:28.643155Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:58:28.643484Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:58:32.052207Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:58:32.052801Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:58:32.053086Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:58:32.053172Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:58:34.234694Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:58:34.235241Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:58:34.235499Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:58:34.235556Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:59:01.027589Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:59:01.027947Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:59:01.030826Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:59:01.031124Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:59:02.542934Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:59:02.543326Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:59:02.543579Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:59:02.543645Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:59:03.605663Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:59:03.605872Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:59:03.607479Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:59:03.607662Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:59:04.759405Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:59:04.760434Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:59:04.760517Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:59:04.760697Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:59:06.156959Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:59:06.157524Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:59:06.157729Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:59:06.157787Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:59:07.250789Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:59:07.251185Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:59:07.251375Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:59:07.251410Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:59:08.692480Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:59:08.693045Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:59:08.693252Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:59:08.693309Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:59:10.180029Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:59:10.180667Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:59:10.180959Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:59:10.181015Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:59:11.471511Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:59:11.472068Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:59:11.472259Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:59:11.472313Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:59:12.847176Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:59:12.847709Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:59:12.847917Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:59:12.847969Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:59:17.608765Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:59:17.609044Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:59:17.644598Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:59:17.644852Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:59:19.061917Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T00:59:19.062744Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:59:19.062960Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T00:59:19.063020Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T01:00:08.208358Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T01:00:08.208587Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T01:00:08.249004Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T01:00:08.249265Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T01:58:09.890837Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T01:58:09.891156Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-13T01:58:09.903922Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T02:03:50.329628Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T02:03:50.330095Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T02:03:50.369134Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T02:03:50.369393Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T02:03:51.776514Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T02:03:51.777185Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T02:03:51.777241Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T02:03:51.777460Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T02:03:52.749340Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T02:03:52.749869Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T02:03:52.750082Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T02:03:52.750272Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T02:08:43.940182Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T02:08:43.940731Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-13T02:08:43.940890Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-13T02:08:43.967645Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T02:09:12.261133Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T02:09:12.261385Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-13T02:09:12.261467Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-13T02:09:12.287570Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-13T02:09:12.301135Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "total_rows": 49, "event": "extract.total_rows", "level": "info", "timestamp": "2026-04-13T02:09:12.321957Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "schedule_counts": {"G-2": 11, "G-4": 6, "G-5": 8, "G-1": 12, "G-3": 12}, "event": "extract.schedule_counts", "level": "info", "timestamp": "2026-04-13T02:09:12.325672Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "schedule_exposures": {"G-2": "Decimal('12393573425.35')", "G-4": "Decimal('7785548047.19')", "G-5": "Decimal('8838901837.85')", "G-1": "Decimal('12568434831.63')", "G-3": "Decimal('11925919493.87')"}, "event": "extract.schedule_exposures", "level": "info", "timestamp": "2026-04-13T02:09:12.328658Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "count": 15, "event": "extract.top_50", "level": "info", "timestamp": "2026-04-13T02:09:12.335930Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "mappings": 15, "event": "extract.cpty_hierarchy", "level": "info", "timestamp": "2026-04-13T02:09:12.337028Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "count": 13, "event": "extract.netting_sets", "level": "info", "timestamp": "2026-04-13T02:09:12.339938Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "count": 6, "event": "extract.collateral_haircuts", "level": "info", "timestamp": "2026-04-13T02:09:12.341209Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "count": 15, "event": "extract.exemption_statuses", "level": "info", "timestamp": "2026-04-13T02:09:12.342190Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "count": 8, "source": "BLOOMBERG_BFIX_EOD", "event": "extract.fx_rates", "level": "info", "timestamp": "2026-04-13T02:09:12.343939Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "tier1_capital": 185000000.0, "event": "extract.tier1_capital", "level": "info", "timestamp": "2026-04-13T02:09:12.345356Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "total_rows": 49, "counterparties": 15, "schedules": 5, "event": "node.complete", "level": "info", "timestamp": "2026-04-13T02:09:12.345509Z"}
+{"node": "extract_target", "report_type": "fr2590", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-13T02:09:12.349838Z"}
+{"node": "extract_target", "report_type": "fr2590", "report_date": "2026-04-04", "config": "data/axiomsl/fr2590_axiomsl_config_files.xml", "log": "data/axiomsl/fr2590_processing.log", "output": "data/axiomsl/fr2590_target.json", "event": "extract.files", "level": "info", "timestamp": "2026-04-13T02:09:12.349959Z"}
+{"error": "Double hyphen within comment: <!--\n=================================================, line 5, column 18 (<string>, line 5)", "event": "xml.parse_error", "level": "warning", "timestamp": "2026-04-13T02:09:12.352551Z"}
+{"node": "extract_target", "report_type": "fr2590", "report_date": "2026-04-04", "filters_count": 0, "hierarchy_stale_days": 0, "exposure_method": "unknown", "event": "extract.xml.complete", "level": "info", "timestamp": "2026-04-13T02:09:12.352695Z"}
+{"node": "extract_target", "report_type": "fr2590", "report_date": "2026-04-04", "loaded": 338, "excluded": 12, "event": "extract.log.complete", "level": "info", "timestamp": "2026-04-13T02:09:12.353904Z"}
+{"node": "extract_target", "report_type": "fr2590", "report_date": "2026-04-04", "schedule_count": 7, "limit_breaches": 0, "event": "extract.json.complete", "level": "info", "timestamp": "2026-04-13T02:09:12.354533Z"}
+{"node": "extract_target", "report_type": "fr2590", "report_date": "2026-04-04", "total_loaded": 338, "total_excluded": 12, "hierarchy_mismatches": 0, "event": "node.complete", "level": "info", "timestamp": "2026-04-13T02:09:12.354673Z"}
+{"node": "compare", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-13T02:09:12.356583Z"}
+{"node": "compare", "report_date": "2026-04-04", "source_rows": 49, "target_rows": 338, "delta": 289, "delta_pct": 589.8, "event": "compare.row_delta", "level": "info", "timestamp": "2026-04-13T02:09:12.356796Z"}
+{"node": "compare", "report_date": "2026-04-04", "table_count": 7, "event": "compare.table_deltas", "level": "info", "timestamp": "2026-04-13T02:09:12.356948Z"}
+{"node": "compare", "report_date": "2026-04-04", "fx_count": 11, "event": "compare.fx_deltas", "level": "info", "timestamp": "2026-04-13T02:09:12.357078Z"}
+{"run": "api", "report_type": "fr2590", "report_date": "2026-04-04", "error": "'FR2590Target' object has no attribute 'silent_filters'", "event": "api.recon.error", "level": "error", "timestamp": "2026-04-13T02:09:12.357297Z", "exception": "Traceback (most recent call last):\n  File \"C:\\LangChain\\Mizuho-Code\\recon-x\\reconx-prototype\\api\\server.py\", line 116, in event_stream\n    for chunk in graph.stream(initial_state):\n                 ~~~~~~~~~~~~^^^^^^^^^^^^^^^\n  File \"C:\\LangChain\\Mizuho-Code\\recon-x\\.venv\\Lib\\site-packages\\langgraph\\pregel\\main.py\", line 2736, in stream\n    for _ in runner.tick(\n             ~~~~~~~~~~~^\n        [t for t in loop.tasks.values() if not t.writes],\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<2 lines>...\n        schedule_task=loop.accept_push,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    ):\n    ^\n  File \"C:\\LangChain\\Mizuho-Code\\recon-x\\.venv\\Lib\\site-packages\\langgraph\\pregel\\_runner.py\", line 167, in tick\n    run_with_retry(\n    ~~~~~~~~~~~~~~^\n        t,\n        ^^\n    ...<10 lines>...\n        },\n        ^^\n    )\n    ^\n  File \"C:\\LangChain\\Mizuho-Code\\recon-x\\.venv\\Lib\\site-packages\\langgraph\\pregel\\_retry.py\", line 126, in run_with_retry\n    return task.proc.invoke(task.input, config)\n           ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\LangChain\\Mizuho-Code\\recon-x\\.venv\\Lib\\site-packages\\langgraph\\_internal\\_runnable.py\", line 656, in invoke\n    input = context.run(step.invoke, input, config, **kwargs)\n  File \"C:\\LangChain\\Mizuho-Code\\recon-x\\.venv\\Lib\\site-packages\\langgraph\\_internal\\_runnable.py\", line 400, in invoke\n    ret = self.func(*args, **kwargs)\n  File \"C:\\LangChain\\Mizuho-Code\\recon-x\\reconx-prototype\\agents\\compare.py\", line 84, in compare_node\n    silent_filter_count = len(target.silent_filters)\n                              ^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\LangChain\\Mizuho-Code\\recon-x\\.venv\\Lib\\site-packages\\pydantic\\main.py\", line 1026, in __getattr__\n    raise AttributeError(f'{type(self).__name__!r} object has no attribute {item!r}')\nAttributeError: 'FR2590Target' object has no attribute 'silent_filters'\nDuring task with name 'compare' and id '3d877eb8-14fc-00bb-96d6-30590ee5ae0a'"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T02:10:22.243878Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T02:10:22.244302Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-13T02:10:22.244382Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-13T02:10:22.267309Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-13T02:10:22.280801Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "total_rows": 49, "event": "extract.total_rows", "level": "info", "timestamp": "2026-04-13T02:10:22.298073Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "schedule_counts": {"G-2": 11, "G-4": 6, "G-1": 12, "G-3": 12, "G-5": 8}, "event": "extract.schedule_counts", "level": "info", "timestamp": "2026-04-13T02:10:22.301751Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "schedule_exposures": {"G-5": "Decimal('8838901837.85')", "G-1": "Decimal('12568434831.63')", "G-3": "Decimal('11925919493.87')", "G-2": "Decimal('12393573425.35')", "G-4": "Decimal('7785548047.19')"}, "event": "extract.schedule_exposures", "level": "info", "timestamp": "2026-04-13T02:10:22.304406Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "count": 15, "event": "extract.top_50", "level": "info", "timestamp": "2026-04-13T02:10:22.309555Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "mappings": 15, "event": "extract.cpty_hierarchy", "level": "info", "timestamp": "2026-04-13T02:10:22.310374Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "count": 13, "event": "extract.netting_sets", "level": "info", "timestamp": "2026-04-13T02:10:22.313133Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "count": 6, "event": "extract.collateral_haircuts", "level": "info", "timestamp": "2026-04-13T02:10:22.314512Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "count": 15, "event": "extract.exemption_statuses", "level": "info", "timestamp": "2026-04-13T02:10:22.315221Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "count": 8, "source": "BLOOMBERG_BFIX_EOD", "event": "extract.fx_rates", "level": "info", "timestamp": "2026-04-13T02:10:22.316635Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "tier1_capital": 185000000.0, "event": "extract.tier1_capital", "level": "info", "timestamp": "2026-04-13T02:10:22.318162Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "total_rows": 49, "counterparties": 15, "schedules": 5, "event": "node.complete", "level": "info", "timestamp": "2026-04-13T02:10:22.318340Z"}
+{"node": "extract_target", "report_type": "fr2590", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-13T02:10:22.322706Z"}
+{"node": "extract_target", "report_type": "fr2590", "report_date": "2026-04-04", "config": "data/axiomsl/fr2590_axiomsl_config_files.xml", "log": "data/axiomsl/fr2590_processing.log", "output": "data/axiomsl/fr2590_target.json", "event": "extract.files", "level": "info", "timestamp": "2026-04-13T02:10:22.322813Z"}
+{"error": "Double hyphen within comment: <!--\n=================================================, line 5, column 18 (<string>, line 5)", "event": "xml.parse_error", "level": "warning", "timestamp": "2026-04-13T02:10:22.324339Z"}
+{"node": "extract_target", "report_type": "fr2590", "report_date": "2026-04-04", "filters_count": 0, "hierarchy_stale_days": 0, "exposure_method": "unknown", "event": "extract.xml.complete", "level": "info", "timestamp": "2026-04-13T02:10:22.324542Z"}
+{"node": "extract_target", "report_type": "fr2590", "report_date": "2026-04-04", "loaded": 338, "excluded": 12, "event": "extract.log.complete", "level": "info", "timestamp": "2026-04-13T02:10:22.325732Z"}
+{"node": "extract_target", "report_type": "fr2590", "report_date": "2026-04-04", "schedule_count": 7, "limit_breaches": 0, "event": "extract.json.complete", "level": "info", "timestamp": "2026-04-13T02:10:22.326313Z"}
+{"node": "extract_target", "report_type": "fr2590", "report_date": "2026-04-04", "total_loaded": 338, "total_excluded": 12, "hierarchy_mismatches": 0, "event": "node.complete", "level": "info", "timestamp": "2026-04-13T02:10:22.326461Z"}
+{"node": "compare", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-13T02:10:22.327707Z"}
+{"node": "compare", "report_date": "2026-04-04", "source_rows": 49, "target_rows": 338, "delta": 289, "delta_pct": 589.8, "event": "compare.row_delta", "level": "info", "timestamp": "2026-04-13T02:10:22.327949Z"}
+{"node": "compare", "report_date": "2026-04-04", "table_count": 7, "event": "compare.table_deltas", "level": "info", "timestamp": "2026-04-13T02:10:22.328110Z"}
+{"node": "compare", "report_date": "2026-04-04", "fx_count": 11, "event": "compare.fx_deltas", "level": "info", "timestamp": "2026-04-13T02:10:22.328210Z"}
+{"node": "compare", "report_date": "2026-04-04", "silent_count": 0, "exposure_pct": 24.49, "event": "compare.silent_exposure", "level": "info", "timestamp": "2026-04-13T02:10:22.328262Z"}
+{"node": "compare", "report_date": "2026-04-04", "overall_coverage_pct": 689.8, "orphan_count": 301, "event": "compare.coverage", "level": "info", "timestamp": "2026-04-13T02:10:22.328294Z"}
+{"node": "compare", "report_date": "2026-04-04", "row_delta": 289, "coverage_pct": 689.8, "silent_filters": 0, "event": "node.complete", "level": "info", "timestamp": "2026-04-13T02:10:22.328339Z"}
+{"node": "classify", "report_type": "fr2590", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-13T02:10:22.329473Z"}
+{"node": "classify", "report_type": "fr2590", "report_date": "2026-04-04", "skill": "domain_fr2590", "chars": 6487, "event": "skill.loaded", "level": "info", "timestamp": "2026-04-13T02:10:22.330202Z"}
+{"node": "classify", "report_type": "fr2590", "report_date": "2026-04-04", "model": "anthropic.claude-3-haiku-20240307-v1:0", "event": "llm.classify.start", "level": "info", "timestamp": "2026-04-13T02:10:22.652648Z"}
+{"node": "classify", "report_type": "fr2590", "report_date": "2026-04-04", "response_chars": 3165, "event": "llm.classify.complete", "level": "info", "timestamp": "2026-04-13T02:10:30.245138Z"}
+{"node": "classify", "report_type": "fr2590", "report_date": "2026-04-04", "method": "LLM_CLASSIFIED", "breaks_count": 5, "event": "classify.method", "level": "info", "timestamp": "2026-04-13T02:10:30.245346Z"}
+{"node": "classify", "report_type": "fr2590", "report_date": "2026-04-04", "total_breaks": 5, "recon_score": 0.0, "method": "LLM_CLASSIFIED", "event": "node.complete", "level": "info", "timestamp": "2026-04-13T02:10:30.246458Z"}
+{"run": "api", "report_type": "fr2590", "report_date": "2026-04-04", "event": "api.recon.complete", "level": "info", "timestamp": "2026-04-13T02:10:30.248126Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T02:15:30.752941Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T02:15:30.753214Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-13T02:15:30.753351Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-13T02:15:30.779570Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-13T02:15:30.791838Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "total_rows": 49, "event": "extract.total_rows", "level": "info", "timestamp": "2026-04-13T02:15:30.812274Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "schedule_counts": {"G-1": 12, "G-3": 12, "G-2": 11, "G-4": 6, "G-5": 8}, "event": "extract.schedule_counts", "level": "info", "timestamp": "2026-04-13T02:15:30.816434Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "schedule_exposures": {"G-2": "Decimal('12393573425.35')", "G-4": "Decimal('7785548047.19')", "G-5": "Decimal('8838901837.85')", "G-1": "Decimal('12568434831.63')", "G-3": "Decimal('11925919493.87')"}, "event": "extract.schedule_exposures", "level": "info", "timestamp": "2026-04-13T02:15:30.819131Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "count": 15, "event": "extract.top_50", "level": "info", "timestamp": "2026-04-13T02:15:30.824207Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "mappings": 15, "event": "extract.cpty_hierarchy", "level": "info", "timestamp": "2026-04-13T02:15:30.825369Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "count": 13, "event": "extract.netting_sets", "level": "info", "timestamp": "2026-04-13T02:15:30.830938Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "count": 6, "event": "extract.collateral_haircuts", "level": "info", "timestamp": "2026-04-13T02:15:30.831897Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "count": 15, "event": "extract.exemption_statuses", "level": "info", "timestamp": "2026-04-13T02:15:30.832530Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "count": 8, "source": "BLOOMBERG_BFIX_EOD", "event": "extract.fx_rates", "level": "info", "timestamp": "2026-04-13T02:15:30.833878Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "tier1_capital": 185000000.0, "event": "extract.tier1_capital", "level": "info", "timestamp": "2026-04-13T02:15:30.836056Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "total_rows": 49, "counterparties": 15, "schedules": 5, "event": "node.complete", "level": "info", "timestamp": "2026-04-13T02:15:30.836307Z"}
+{"node": "extract_target", "report_type": "fr2590", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-13T02:15:30.842758Z"}
+{"node": "extract_target", "report_type": "fr2590", "report_date": "2026-04-04", "config": "data/axiomsl/fr2590_axiomsl_config_files.xml", "log": "data/axiomsl/fr2590_processing.log", "output": "data/axiomsl/fr2590_target.json", "event": "extract.files", "level": "info", "timestamp": "2026-04-13T02:15:30.842891Z"}
+{"error": "Double hyphen within comment: <!--\n=================================================, line 5, column 18 (<string>, line 5)", "event": "xml.parse_error", "level": "warning", "timestamp": "2026-04-13T02:15:30.844747Z"}
+{"node": "extract_target", "report_type": "fr2590", "report_date": "2026-04-04", "filters_count": 0, "hierarchy_stale_days": 0, "exposure_method": "unknown", "event": "extract.xml.complete", "level": "info", "timestamp": "2026-04-13T02:15:30.844981Z"}
+{"node": "extract_target", "report_type": "fr2590", "report_date": "2026-04-04", "loaded": 338, "excluded": 12, "event": "extract.log.complete", "level": "info", "timestamp": "2026-04-13T02:15:30.846369Z"}
+{"node": "extract_target", "report_type": "fr2590", "report_date": "2026-04-04", "schedule_count": 7, "limit_breaches": 0, "event": "extract.json.complete", "level": "info", "timestamp": "2026-04-13T02:15:30.847231Z"}
+{"node": "extract_target", "report_type": "fr2590", "report_date": "2026-04-04", "total_loaded": 338, "total_excluded": 12, "hierarchy_mismatches": 0, "event": "node.complete", "level": "info", "timestamp": "2026-04-13T02:15:30.847469Z"}
+{"node": "compare", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-13T02:15:30.849007Z"}
+{"node": "compare", "report_date": "2026-04-04", "source_rows": 49, "target_rows": 338, "delta": 289, "delta_pct": 589.8, "event": "compare.row_delta", "level": "info", "timestamp": "2026-04-13T02:15:30.849206Z"}
+{"node": "compare", "report_date": "2026-04-04", "table_count": 7, "event": "compare.table_deltas", "level": "info", "timestamp": "2026-04-13T02:15:30.849386Z"}
+{"node": "compare", "report_date": "2026-04-04", "fx_count": 11, "event": "compare.fx_deltas", "level": "info", "timestamp": "2026-04-13T02:15:30.849590Z"}
+{"node": "compare", "report_date": "2026-04-04", "silent_count": 0, "exposure_pct": 24.49, "event": "compare.silent_exposure", "level": "info", "timestamp": "2026-04-13T02:15:30.849743Z"}
+{"node": "compare", "report_date": "2026-04-04", "overall_coverage_pct": 689.8, "orphan_count": 301, "event": "compare.coverage", "level": "info", "timestamp": "2026-04-13T02:15:30.849855Z"}
+{"node": "compare", "report_date": "2026-04-04", "row_delta": 289, "coverage_pct": 689.8, "silent_filters": 0, "event": "node.complete", "level": "info", "timestamp": "2026-04-13T02:15:30.849967Z"}
+{"node": "classify", "report_type": "fr2590", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-13T02:15:30.851207Z"}
+{"node": "classify", "report_type": "fr2590", "report_date": "2026-04-04", "skill": "domain_fr2590", "chars": 6487, "event": "skill.loaded", "level": "info", "timestamp": "2026-04-13T02:15:30.851947Z"}
+{"node": "classify", "report_type": "fr2590", "report_date": "2026-04-04", "model": "anthropic.claude-3-haiku-20240307-v1:0", "event": "llm.classify.start", "level": "info", "timestamp": "2026-04-13T02:15:31.063845Z"}
+{"node": "classify", "report_type": "fr2590", "report_date": "2026-04-04", "response_chars": 3176, "event": "llm.classify.complete", "level": "info", "timestamp": "2026-04-13T02:15:38.715742Z"}
+{"node": "classify", "report_type": "fr2590", "report_date": "2026-04-04", "method": "LLM_CLASSIFIED", "breaks_count": 5, "event": "classify.method", "level": "info", "timestamp": "2026-04-13T02:15:38.716222Z"}
+{"node": "classify", "report_type": "fr2590", "report_date": "2026-04-04", "total_breaks": 5, "recon_score": 0.0, "method": "LLM_CLASSIFIED", "event": "node.complete", "level": "info", "timestamp": "2026-04-13T02:15:38.719137Z"}
+{"run": "api", "report_type": "fr2590", "report_date": "2026-04-04", "event": "api.recon.complete", "level": "info", "timestamp": "2026-04-13T02:15:38.721197Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T02:15:45.296768Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T02:15:45.297161Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-13T02:15:45.310596Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "total_rows": 1000, "event": "extract.total_rows", "level": "info", "timestamp": "2026-04-13T02:15:45.340592Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "table_counts": {"T3": 68, "T11": 78, "T10": 70, "T13": 78, "T12": 60, "T7": 79, "T5": 66, "T8": 66, "T2": 67, "T9": 81, "T6": 76, "T4": 86, "T1": 68, "T14": 57}, "event": "extract.table_counts", "level": "info", "timestamp": "2026-04-13T02:15:45.343765Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "table_notionals": {"T14": "Decimal('2223145214.080000')", "T10": "Decimal('3034971939.570000')", "T13": "Decimal('3436712137.210000')", "T2": "Decimal('2812705964.550000')", "T12": "Decimal('2277455852.210000')", "T7": "Decimal('3386616035.200000')", "T5": "Decimal('2915635044.160000')", "T8": "Decimal('2454541784.680000')", "T9": "Decimal('3339285892.980000')", "T6": "Decimal('3321342939.380000')", "T4": "Decimal('3442295012.850000')", "T1": "Decimal('2431019733.720000')", "T3": "Decimal('2400077917.270000')", "T11": "Decimal('3293022884.360000')"}, "event": "extract.table_notionals", "level": "info", "timestamp": "2026-04-13T02:15:45.348432Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "fx_rates": {"EUR": "Decimal('1.0825000000')", "GBP": "Decimal('1.2650000000')", "JPY": "Decimal('0.0067000000')", "CAD": "Decimal('0.7250000000')", "AUD": "Decimal('0.6530000000')", "CHF": "Decimal('1.1350000000')", "CNY": "Decimal('0.1385000000')", "MXN": "Decimal('0.0490000000')"}, "fx_rate_source": "BLOOMBERG_BFIX_EOD", "event": "extract.fx_rates", "level": "info", "timestamp": "2026-04-13T02:15:45.350787Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "count": 220, "event": "extract.hqla_positions", "level": "info", "timestamp": "2026-04-13T02:15:45.354976Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "count": 0, "event": "extract.fwd_start_candidates", "level": "info", "timestamp": "2026-04-13T02:15:45.356219Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "count": 2, "leis": ["NEWCP001XXXXXXXXXXXX", "NEWCP002XXXXXXXXXXXX"], "event": "extract.unsynced_leis", "level": "info", "timestamp": "2026-04-13T02:15:45.357477Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "total_rows": 1000, "table_count": 14, "event": "node.complete", "level": "info", "timestamp": "2026-04-13T02:15:45.357815Z"}
+{"node": "extract_target", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-13T02:15:45.363411Z"}
+{"node": "extract_target", "report_date": "2026-04-04", "config": "data/axiomsl/fr2052a_config.xml", "log": "data/axiomsl/fr2052a_processing.log", "output": "data/axiomsl/fr2052a_target.csv", "event": "extract.files", "level": "info", "timestamp": "2026-04-13T02:15:45.363557Z"}
+{"node": "extract_target", "report_date": "2026-04-04", "loaded": 0, "excluded": 0, "fx_rates_count": 0, "event": "extract.log.complete", "level": "info", "timestamp": "2026-04-13T02:15:45.363696Z"}
+{"node": "extract_target", "section": "IngestionFilters", "model": "anthropic.claude-3-haiku-20240307-v1:0", "event": "llm.xml_parse", "level": "info", "timestamp": "2026-04-13T02:15:45.576909Z"}
+{"node": "extract_target", "section": "FXConfig", "model": "anthropic.claude-3-haiku-20240307-v1:0", "event": "llm.xml_parse", "level": "info", "timestamp": "2026-04-13T02:15:47.310378Z"}
+{"node": "extract_target", "section": "HQLAConfig", "model": "anthropic.claude-3-haiku-20240307-v1:0", "event": "llm.xml_parse", "level": "info", "timestamp": "2026-04-13T02:15:48.450111Z"}
+{"node": "extract_target", "report_date": "2026-04-04", "filters_count": 2, "missing_leis_count": 0, "event": "extract.xml.complete", "level": "info", "timestamp": "2026-04-13T02:15:49.149541Z"}
+{"node": "extract_target", "report_date": "2026-04-04", "table_count": 10, "hqla_downgrades": 0, "event": "extract.json.complete", "level": "info", "timestamp": "2026-04-13T02:15:49.157293Z"}
+{"node": "extract_target", "report_date": "2026-04-04", "total_loaded": 0, "total_excluded": 0, "hqla_downgrades": 0, "event": "node.complete", "level": "info", "timestamp": "2026-04-13T02:15:49.157438Z"}
+{"node": "compare", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-13T02:15:49.158427Z"}
+{"node": "compare", "report_date": "2026-04-04", "source_rows": 1000, "target_rows": 0, "delta": -1000, "delta_pct": -100.0, "event": "compare.row_delta", "level": "info", "timestamp": "2026-04-13T02:15:49.158551Z"}
+{"node": "compare", "report_date": "2026-04-04", "table_count": 14, "event": "compare.table_deltas", "level": "info", "timestamp": "2026-04-13T02:15:49.158733Z"}
+{"node": "compare", "report_date": "2026-04-04", "fx_count": 8, "event": "compare.fx_deltas", "level": "info", "timestamp": "2026-04-13T02:15:49.158897Z"}
+{"node": "compare", "report_date": "2026-04-04", "silent_count": 2, "exposure_pct": 0.0, "event": "compare.silent_exposure", "level": "info", "timestamp": "2026-04-13T02:15:49.158946Z"}
+{"node": "compare", "report_date": "2026-04-04", "overall_coverage_pct": 0.0, "orphan_count": 0, "event": "compare.coverage", "level": "info", "timestamp": "2026-04-13T02:15:49.158988Z"}
+{"node": "compare", "report_date": "2026-04-04", "row_delta": -1000, "coverage_pct": 0.0, "silent_filters": 2, "event": "node.complete", "level": "info", "timestamp": "2026-04-13T02:15:49.159058Z"}
+{"node": "classify", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-13T02:15:49.159890Z"}
+{"node": "classify", "report_date": "2026-04-04", "skill": "domain_fr2052a", "chars": 4947, "event": "skill.loaded", "level": "info", "timestamp": "2026-04-13T02:15:49.160388Z"}
+{"node": "classify", "report_date": "2026-04-04", "model": "anthropic.claude-3-haiku-20240307-v1:0", "event": "llm.classify.start", "level": "info", "timestamp": "2026-04-13T02:15:49.371044Z"}
+{"node": "classify", "report_date": "2026-04-04", "response_chars": 2312, "event": "llm.classify.complete", "level": "info", "timestamp": "2026-04-13T02:15:54.486762Z"}
+{"node": "classify", "report_date": "2026-04-04", "method": "LLM_CLASSIFIED", "breaks_count": 4, "event": "classify.method", "level": "info", "timestamp": "2026-04-13T02:15:54.487086Z"}
+{"node": "classify", "report_date": "2026-04-04", "total_breaks": 4, "recon_score": 25.0, "method": "LLM_CLASSIFIED", "event": "node.complete", "level": "info", "timestamp": "2026-04-13T02:15:54.488983Z"}
+{"run": "api", "report_type": "fr2052a", "report_date": "2026-04-04", "event": "api.recon.complete", "level": "info", "timestamp": "2026-04-13T02:15:54.491267Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T02:15:54.496971Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T02:15:54.497888Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-13T02:15:54.498278Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-13T02:15:54.531051Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T02:15:54.582775Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T02:15:54.583033Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-13T02:15:54.583095Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-13T02:15:54.608785Z"}

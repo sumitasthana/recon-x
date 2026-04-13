@@ -1,112 +1,103 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { STEPS } from './data/reconxSteps';
+import { useReports, useReportContext, useReportSteps, useReconRun } from './hooks/useReconApi';
+import ReportSelector from './components/reconx/ReportSelector';
 import ReconContext from './components/reconx/ReconContext';
 import SkillShowcase from './components/reconx/SkillShowcase';
 import StepCard from './components/reconx/StepCard';
 import BreakReport from './components/reconx/BreakReport';
+import DataExplorer from './components/reconx/DataExplorer';
 
-const STEP_DURATION = 6500; // ms per step. 4 steps = 26s total.
+const STEP_DURATION = 6500;
 
 function App() {
-  const [phase, setPhase] = useState('idle'); // "idle" | "running" | "done"
-  const [currentStep, setCurrentStep] = useState(-1); // -1 when idle or done
-  const [statuses, setStatuses] = useState(['pending', 'pending', 'pending', 'pending']);
-  const [elapsed, setElapsed] = useState(0);
-  const [showReport, setShowReport] = useState(false);
+  const [activeTab, setActiveTab] = useState('recon'); // 'recon' | 'data'
+  const [selectedReport, setSelectedReport] = useState(null);
+  const [reportDate, setReportDate] = useState('2026-04-04');
 
+  const { reports: availableReports, loading: reportsLoading } = useReports();
+  const { context: reportContext } = useReportContext(selectedReport);
+  const { steps: reportSteps } = useReportSteps(selectedReport);
+
+  const {
+    startRun,
+    phase,
+    stepStatuses: sseStatuses,
+    report: apiReport,
+    error: apiError,
+  } = useReconRun(reportSteps.length || 4);
+
+  const [elapsed, setElapsed] = useState(0);
+  const [currentStep, setCurrentStep] = useState(-1);
   const timerRef = useRef(null);
   const startRef = useRef(null);
   const reportRef = useRef(null);
 
-  const startRun = useCallback(() => {
-    setPhase('running');
+  const statuses = sseStatuses.some((s) => s !== 'pending')
+    ? sseStatuses
+    : reportSteps.map((_, i) => {
+        if (phase !== 'running') return i < reportSteps.length && phase === 'done' ? 'done' : 'pending';
+        if (i < currentStep) return 'done';
+        if (i === currentStep) return 'running';
+        return 'pending';
+      });
+
+  const handleStart = useCallback(() => {
+    if (!selectedReport) return;
+    startRun(selectedReport, reportDate, null);
     setCurrentStep(0);
-    setStatuses(['running', 'pending', 'pending', 'pending']);
     setElapsed(0);
-    setShowReport(false);
     startRef.current = Date.now();
     timerRef.current = setInterval(() => {
       setElapsed(Date.now() - startRef.current);
     }, 80);
-  }, []);
+  }, [selectedReport, reportDate, startRun]);
 
-  // Timer effect to update step progress
   useEffect(() => {
-    if (phase !== 'running') return;
-
+    if (phase !== 'running') {
+      if (timerRef.current) clearInterval(timerRef.current);
+      return;
+    }
     const stepIndex = Math.floor(elapsed / STEP_DURATION);
-
-    if (stepIndex >= STEPS.length) {
-      // All steps complete
+    if (stepIndex >= reportSteps.length) {
       clearInterval(timerRef.current);
-      setPhase('done');
-      setStatuses(['done', 'done', 'done', 'done']);
       setCurrentStep(-1);
+      return;
+    }
+    if (stepIndex !== currentStep) setCurrentStep(stepIndex);
+  }, [elapsed, phase, currentStep, reportSteps.length]);
 
-      // Show report after brief delay
-      setTimeout(() => {
-        setShowReport(true);
-      }, 300);
-
-      // Scroll to report
+  useEffect(() => {
+    if (phase === 'done' && apiReport) {
       setTimeout(() => {
         reportRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 400);
-
-      return;
     }
+  }, [phase, apiReport]);
 
-    if (stepIndex !== currentStep) {
-      setCurrentStep(stepIndex);
-      // Update statuses: done for past, running for current, pending for future
-      const newStatuses = STEPS.map((_, i) => {
-        if (i < stepIndex) return 'done';
-        if (i === stepIndex) return 'running';
-        return 'pending';
-      });
-      setStatuses(newStatuses);
-    }
-  }, [elapsed, phase, currentStep]);
-
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
+      if (timerRef.current) clearInterval(timerRef.current);
     };
   }, []);
 
-  // Computed: elapsed time for current step
   const stepElapsed = currentStep >= 0 ? elapsed - currentStep * STEP_DURATION : 0;
+  const selectedReportInfo = availableReports.find((r) => r.id === selectedReport);
+  const isRunning = phase === 'running';
+  const hasReport = selectedReport !== null;
 
-  // Format elapsed time for display
-  const formatElapsed = (ms) => {
-    const seconds = Math.floor(ms / 1000);
-    return `${seconds}s elapsed`;
-  };
-
-  // Get button content based on phase
   const getButtonContent = () => {
-    if (phase === 'idle') {
-      return 'Start reconciliation';
-    }
-    if (phase === 'running') {
-      return 'Reconciling…';
-    }
+    if (!hasReport) return 'Select a report';
+    if (phase === 'idle') return 'Start reconciliation';
+    if (isRunning) return 'Reconciling\u2026';
+    if (phase === 'error') return 'Retry';
     return 'Run again';
   };
-
-  const buttonDisabled = phase === 'running';
-  const buttonBg = phase === 'running' ? '#3f3f46' : '#185FA5';
-  const buttonColor = phase === 'running' ? '#a1a1aa' : '#ffffff';
 
   return (
     <div className="min-h-screen bg-surface">
       <div className="max-w-[960px] mx-auto p-6 pb-12">
         {/* HEADER */}
         <div className="flex items-center gap-3 mb-6">
-          {/* Rx Logo */}
           <div
             className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-semibold text-lg"
             style={{
@@ -125,103 +116,180 @@ function App() {
           </div>
         </div>
 
-        {/* INFO BAR */}
-        <div className="bg-surface rounded-lg px-5 py-4 mb-6 flex items-center justify-between">
-          <div>
-            <div className="text-[13px] text-zinc-500">
-              FR 2052a Liquidity Report · BHC-Alpha (Consolidated)
-            </div>
-            <div className="text-[14px] font-medium text-zinc-100 mt-0.5">
-              Report date: April 4, 2026
-            </div>
-          </div>
-          <button
-            onClick={startRun}
-            disabled={buttonDisabled}
-            className="rounded-full px-6 py-2 font-medium transition-opacity hover:opacity-90 disabled:opacity-100"
-            style={{
-              backgroundColor: buttonBg,
-              color: buttonColor,
-            }}
-          >
-            {getButtonContent()}
-          </button>
+        {/* TAB BAR */}
+        <div className="flex gap-1 mb-6 border-b border-surface-border">
+          {[
+            { id: 'recon', label: 'Reconciliation' },
+            { id: 'data', label: 'Source Data' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className="px-4 py-2.5 text-[14px] font-medium transition-colors relative"
+              style={{
+                color: activeTab === tab.id ? '#e4e4e7' : '#71717a',
+              }}
+            >
+              {tab.label}
+              {activeTab === tab.id && (
+                <div
+                  className="absolute bottom-0 left-0 right-0 h-[2px] rounded-t"
+                  style={{ backgroundColor: '#185FA5' }}
+                />
+              )}
+            </button>
+          ))}
         </div>
 
-        {/* CONTEXT SECTION */}
+        {/* ========== SOURCE DATA TAB ========== */}
+        {activeTab === 'data' && <DataExplorer />}
+
+        {/* ========== RECONCILIATION TAB ========== */}
+        {activeTab === 'recon' && (<>
+
+        {/* REPORT SELECTOR — card-based picker */}
         <div className="mb-6">
-          <ReconContext />
+          <ReportSelector
+            reports={availableReports}
+            selectedId={selectedReport}
+            onSelect={setSelectedReport}
+            disabled={isRunning}
+          />
         </div>
 
-        {/* IDLE STATE - shown only when idle */}
-        {phase === 'idle' && (
-          <div className="py-20 text-center">
+        {/* CONFIG BAR — date picker + run button (shown after report selected) */}
+        {hasReport && (
+          <div
+            className="bg-surface rounded-lg px-5 py-4 mb-6 flex items-center justify-between gap-4 flex-wrap"
+            style={{ animation: 'rx-fadein 0.3s ease-out' }}
+          >
+            <div className="flex items-center gap-4 flex-wrap">
+              {/* Selected report label */}
+              <div>
+                <div className="text-[13px] text-zinc-500">
+                  {selectedReportInfo?.name || selectedReport}
+                </div>
+                <div className="text-[12px] text-zinc-600">
+                  {selectedReportInfo?.description}
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="h-8 w-px bg-surface-border hidden sm:block" />
+
+              {/* Date picker */}
+              <div>
+                <label className="text-[11px] text-zinc-500 block mb-1">Report date</label>
+                <input
+                  type="date"
+                  value={reportDate}
+                  onChange={(e) => setReportDate(e.target.value)}
+                  disabled={isRunning}
+                  className="bg-surface-card text-zinc-100 text-[14px] rounded-md px-3 py-1.5 border border-surface-border focus:outline-none focus:border-blue-500"
+                />
+              </div>
+            </div>
+
+            <button
+              onClick={handleStart}
+              disabled={isRunning || !hasReport}
+              className="rounded-full px-6 py-2 font-medium transition-opacity hover:opacity-90 disabled:opacity-100 shrink-0"
+              style={{
+                backgroundColor: isRunning ? '#3f3f46' : '#185FA5',
+                color: isRunning ? '#a1a1aa' : '#ffffff',
+              }}
+            >
+              {getButtonContent()}
+            </button>
+          </div>
+        )}
+
+        {/* ERROR BANNER */}
+        {phase === 'error' && apiError && (
+          <div className="bg-red-900/30 border border-red-500/30 rounded-lg px-4 py-3 mb-6 text-[13px] text-red-300">
+            {apiError}
+          </div>
+        )}
+
+        {/* CONTEXT SECTION — shown after report selected */}
+        {hasReport && reportContext && (
+          <div className="mb-6" style={{ animation: 'rx-fadein 0.35s ease-out' }}>
+            <ReconContext context={reportContext} />
+          </div>
+        )}
+
+        {/* IDLE STATE — shown when report selected but not running */}
+        {hasReport && phase === 'idle' && (
+          <div className="py-16 text-center">
             <p className="text-[14px] text-zinc-600 mb-4">
-              Press Start reconciliation to watch the agent detect 4 regulatory breaks
-              between source and target systems
+              Configure the date and press Start reconciliation
             </p>
             <p className="text-[11px] text-zinc-700">
-              Checks: row counts, FX rates, HQLA eligibility, counterparty sync, silent filters
+              The agent will extract source and target data, compare positions, and classify breaks
             </p>
           </div>
         )}
 
-        {/* MAIN SECTION - shown when running or done */}
-        {phase !== 'idle' && (
+        {/* NO REPORT SELECTED — prompt */}
+        {!hasReport && !reportsLoading && (
+          <div className="py-20 text-center">
+            <p className="text-[14px] text-zinc-600">
+              Select a report above to get started
+            </p>
+          </div>
+        )}
+
+        {/* MAIN SECTION — running or done */}
+        {(phase === 'running' || phase === 'done') && reportSteps.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_280px] gap-6">
-            {/* LEFT COLUMN */}
             <div>
               <div className="text-[14px] font-medium text-zinc-100 mb-3">
                 Reconciliation progress
               </div>
               <div className="space-y-2.5">
-                {STEPS.map((step, i) => (
+                {reportSteps.map((step, i) => (
                   <StepCard
                     key={step.id}
                     step={step}
-                    status={statuses[i]}
+                    status={statuses[i] || 'pending'}
                     elapsed={
-                      i === currentStep
-                        ? stepElapsed
-                        : i < currentStep
-                        ? 99999
-                        : 0
+                      i === currentStep ? stepElapsed : i < currentStep ? 99999 : 0
                     }
                     stepIndex={i}
-                    totalSteps={4}
+                    totalSteps={reportSteps.length}
+                    skills={reportContext?.skills || []}
                   />
                 ))}
               </div>
 
-              {/* Elapsed counter */}
-              {phase === 'running' && (
+              {isRunning && (
                 <div className="flex items-center gap-2 mt-3">
                   <div
                     className="w-1.5 h-1.5 rounded-full animate-rx-pulse"
                     style={{ backgroundColor: '#22c55e' }}
                   />
                   <span className="text-[12px] text-zinc-600">
-                    {formatElapsed(elapsed)}
+                    {Math.floor(elapsed / 1000)}s elapsed
                   </span>
                 </div>
               )}
             </div>
 
-            {/* RIGHT COLUMN */}
             <div>
-              <SkillShowcase />
+              <SkillShowcase skills={reportContext?.skills || []} />
             </div>
           </div>
         )}
 
         {/* REPORT SECTION */}
         <div ref={reportRef}>
-          <BreakReport visible={showReport} />
+          <BreakReport report={apiReport} visible={phase === 'done' && !!apiReport} />
         </div>
+
+        </>)}
       </div>
     </div>
   );
 }
 
 export default App;
-
