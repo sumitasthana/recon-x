@@ -1,14 +1,18 @@
 """FastAPI server for ReconX — serves report metadata and runs reconciliations."""
 
 import json
+import os
+import glob
 import time
+import random
 import structlog
 import duckdb
+from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from sse_starlette.sse import EventSourceResponse
 
 import reports
@@ -18,6 +22,10 @@ from core.state import ReconState
 from core.logging_config import configure_logging
 from skills.builtin.platform_snowflake.scripts.data_scaffold import ensure_database
 from reports.fr2590.data_scaffold import ensure_fr2590_tables, create_axiomsl_test_data
+
+from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+from langgraph.checkpoint.memory import MemorySaver
+from chat.agent import build_chat_agent
 
 
 @asynccontextmanager
@@ -42,6 +50,30 @@ class ReconRequest(BaseModel):
     report_type: str = "fr2052a"
     report_date: str = "2026-04-04"
     entity_id: Optional[str] = None
+
+
+class ChatMessage(BaseModel):
+    role: str  # "user" or "assistant"
+    content: str
+
+
+class ChatRequest(BaseModel):
+    message: str
+    thread_id: str = "default"
+    history: List[ChatMessage] = []
+
+
+# ---------- Chat Agent (lazy init) ----------
+
+_chat_agents = {}  # thread_id -> agent
+
+
+def _get_chat_agent(thread_id: str = "default"):
+    """Get or create a chat agent for a thread."""
+    if thread_id not in _chat_agents:
+        config = ReconConfig()
+        _chat_agents[thread_id] = build_chat_agent(config)
+    return _chat_agents[thread_id]
 
 
 # ---------- Routes ----------
@@ -172,6 +204,241 @@ async def run_recon(request: ReconRequest):
             }
 
     return EventSourceResponse(event_stream())
+
+
+# ---------- Chat ----------
+
+@app.post("/api/chat")
+async def chat(request: ChatRequest):
+    """Stream a chat response from the ReconX agent via SSE.
+
+    Events emitted:
+    - {"event": "tool_start", "data": {"tool": "...", "input": "..."}}
+    - {"event": "tool_result", "data": {"tool": "...", "output": "..."}}
+    - {"event": "token", "data": {"content": "..."}}
+    - {"event": "done", "data": {}}
+    - {"event": "error", "data": {"message": "..."}}
+    """
+    agent = _get_chat_agent(request.thread_id)
+    thread_config = {"configurable": {"thread_id": request.thread_id}}
+
+    async def event_stream():
+        log = structlog.get_logger().bind(run="chat", thread=request.thread_id)
+
+        try:
+            # Stream the agent execution
+            full_response = ""
+            for chunk in agent.stream(
+                {"messages": [HumanMessage(content=request.message)]},
+                config=thread_config,
+                stream_mode="updates",
+            ):
+                for node_name, node_output in chunk.items():
+                    messages = node_output.get("messages", [])
+                    for msg in messages:
+                        if isinstance(msg, AIMessage):
+                            # Tool calls the agent is making
+                            if msg.tool_calls:
+                                for tc in msg.tool_calls:
+                                    yield {
+                                        "event": "tool_start",
+                                        "data": json.dumps({
+                                            "tool": tc["name"],
+                                            "input": json.dumps(tc["args"])[:200],
+                                        }),
+                                    }
+                            # Text response from the agent
+                            if msg.content and not msg.tool_calls:
+                                full_response = msg.content
+                                yield {
+                                    "event": "token",
+                                    "data": json.dumps({"content": msg.content}),
+                                }
+
+                        elif isinstance(msg, ToolMessage):
+                            # Truncate long tool outputs for the SSE stream
+                            output = msg.content
+                            if len(output) > 2000:
+                                output = output[:2000] + "\n... (truncated)"
+                            yield {
+                                "event": "tool_result",
+                                "data": json.dumps({
+                                    "tool": msg.name,
+                                    "output": output,
+                                }),
+                            }
+
+            yield {"event": "done", "data": json.dumps({})}
+            log.info("chat.complete", response_len=len(full_response))
+
+        except Exception as e:
+            log.exception("chat.error", error=str(e))
+            yield {
+                "event": "error",
+                "data": json.dumps({"message": str(e)}),
+            }
+
+    return EventSourceResponse(event_stream())
+
+
+# ---------- Observatory ----------
+
+def _scan_reports(output_path: str = "data/output") -> list[dict]:
+    """Scan data/output for all break_report_*.json files and return summaries."""
+    pattern = os.path.join(output_path, "break_report_*.json")
+    runs = []
+    for path in glob.glob(pattern):
+        try:
+            with open(path) as f:
+                data = json.load(f)
+            # Extract severity counts
+            severity_counts = {}
+            total_notional = 0.0
+            categories = []
+            for b in data.get("breaks", []):
+                sev = b.get("severity", "UNKNOWN")
+                severity_counts[sev] = severity_counts.get(sev, 0) + 1
+                if b.get("notional_impact_usd"):
+                    total_notional += b["notional_impact_usd"]
+                categories.append(b.get("category", ""))
+
+            # Parse report_type from filename
+            fname = os.path.basename(path)
+            parts = fname.replace("break_report_", "").replace(".json", "").rsplit("_", 1)
+            report_type = parts[0] if len(parts) == 2 else "unknown"
+
+            runs.append({
+                "date": data.get("report_date", ""),
+                "report_type": report_type,
+                "recon_score": data.get("recon_score", 0),
+                "total_breaks": data.get("total_breaks", 0),
+                "method": data.get("method", ""),
+                "summary": data.get("summary", ""),
+                "severity": severity_counts,
+                "total_notional_impact": round(total_notional, 2),
+                "categories": list(set(categories)),
+                "file": fname,
+            })
+        except (json.JSONDecodeError, KeyError):
+            continue
+    runs.sort(key=lambda r: r["date"], reverse=True)
+    return runs
+
+
+def _seed_demo_history(output_path: str = "data/output"):
+    """Generate synthetic historical reports for demo purposes."""
+    existing = glob.glob(os.path.join(output_path, "break_report_*.json"))
+    if len(existing) >= 10:
+        return  # Already have enough data
+
+    os.makedirs(output_path, exist_ok=True)
+
+    # Break templates that simulate realistic variance
+    break_templates = [
+        {
+            "break_id": "BRK-001", "category": "FX_RATE_SOURCE_MISMATCH",
+            "severity": "HIGH", "table_assignment": "T5",
+            "description": "FX rate source mismatch between source and target data",
+            "root_cause": "Source and target systems using different FX rate sources",
+            "recommended_action": "Align FX rate sources between systems",
+        },
+        {
+            "break_id": "BRK-002", "category": "HQLA_REF_STALE",
+            "severity": "HIGH", "table_assignment": "T2",
+            "description": "HQLA reference data is stale, causing incorrect security classifications",
+            "root_cause": "HQLA eligibility file not updated since last business day",
+            "recommended_action": "Refresh HQLA reference data from DTCC feed",
+        },
+        {
+            "break_id": "BRK-003", "category": "CPTY_REF_SYNC_LAG",
+            "severity": "MEDIUM", "table_assignment": "T6",
+            "description": "Counterparty LEIs present in source but missing in target",
+            "root_cause": "LEI sync between counterparty master and AxiomSL delayed",
+            "recommended_action": "Trigger manual LEI sync and verify counterparty mappings",
+        },
+        {
+            "break_id": "BRK-004", "category": "SILENT_EXCLUSION",
+            "severity": "MEDIUM", "table_assignment": "T6",
+            "description": "Positions silently excluded by ingestion filters in target system",
+            "root_cause": "Silent filter FWD_START_NULL_EXCL excluding valid positions",
+            "recommended_action": "Review filter configuration and add audit logging",
+        },
+    ]
+
+    rng = random.Random(42)  # Deterministic for consistent demo
+    base_date = datetime(2026, 4, 4)
+
+    for day_offset in range(-20, 1):
+        d = base_date + timedelta(days=day_offset)
+        # Skip weekends
+        if d.weekday() >= 5:
+            continue
+
+        date_str = d.strftime("%Y-%m-%d")
+        path = os.path.join(output_path, f"break_report_fr2052a_{date_str}.json")
+        if os.path.exists(path):
+            continue
+
+        # Simulate improving score over time with some variance
+        trend = min(0.7, (day_offset + 20) / 25)  # 0 → 0.7 over the range
+        base_score = 35 + trend * 45  # 35 → 80
+        noise = rng.gauss(0, 8)
+        score = max(10, min(95, base_score + noise))
+
+        # Pick a subset of breaks — fewer as score improves
+        if score >= 80:
+            active_breaks = rng.sample(break_templates, k=rng.randint(0, 1))
+        elif score >= 60:
+            active_breaks = rng.sample(break_templates, k=rng.randint(1, 2))
+        else:
+            active_breaks = rng.sample(break_templates, k=rng.randint(2, 4))
+
+        breaks = []
+        for bt in active_breaks:
+            b = dict(bt)
+            b["source_count"] = rng.randint(3, 20)
+            b["target_count"] = rng.randint(0, b["source_count"])
+            b["notional_impact_usd"] = round(rng.uniform(5e5, 2e8), 2)
+            breaks.append(b)
+
+        method = rng.choice(["LLM_CLASSIFIED"] * 4 + ["DETERMINISTIC_FALLBACK"])
+
+        sev_summary = {}
+        for b in breaks:
+            sev_summary[b["severity"]] = sev_summary.get(b["severity"], 0) + 1
+        sev_str = ", ".join(f"{v} {k.lower()}" for k, v in sev_summary.items())
+
+        report = {
+            "report_date": date_str,
+            "total_breaks": len(breaks),
+            "breaks": breaks,
+            "recon_score": round(score, 1),
+            "summary": f"Score: {score:.1f}/100 | {len(breaks)} break(s) ({sev_str or 'none'})",
+            "method": method,
+        }
+
+        with open(path, "w") as f:
+            json.dump(report, f, indent=2)
+
+
+@app.get("/api/observatory")
+def get_observatory():
+    """Get historical run data for the observatory dashboard."""
+    config = ReconConfig()
+    _seed_demo_history(config.output_path)
+    runs = _scan_reports(config.output_path)
+    return runs
+
+
+@app.get("/api/observatory/{report_type}/{date}")
+def get_observatory_detail(report_type: str, date: str):
+    """Get a specific historical break report."""
+    config = ReconConfig()
+    path = os.path.join(config.output_path, f"break_report_{report_type}_{date}.json")
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail=f"No report for {report_type} on {date}")
+    with open(path) as f:
+        return json.load(f)
 
 
 # ---------- Data Explorer ----------

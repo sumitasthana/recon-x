@@ -1,0 +1,21 @@
+{
+  "report_date": "2026-03-31",
+  "total_breaks": 1,
+  "breaks": [
+    {
+      "break_id": "BRK-002",
+      "category": "HQLA_REF_STALE",
+      "severity": "HIGH",
+      "table_assignment": "T2",
+      "description": "HQLA reference data is stale, causing incorrect security classifications",
+      "root_cause": "HQLA eligibility file not updated since last business day",
+      "recommended_action": "Refresh HQLA reference data from DTCC feed",
+      "source_count": 18,
+      "target_count": 17,
+      "notional_impact_usd": 33442828.32
+    }
+  ],
+  "recon_score": 69.7,
+  "summary": "Score: 69.7/100 | 1 break(s) (1 high)",
+  "method": "DETERMINISTIC_FALLBACK"
+}

@@ -84,7 +84,13 @@ def main():
     parser.add_argument("--date", default="2026-04-04", help="Report date (YYYY-MM-DD)")
     parser.add_argument("--entity", default=None, help="Entity ID filter (optional)")
     parser.add_argument("--dry-run", action="store_true", help="Run without writing outputs")
+    parser.add_argument("--chat", action="store_true", help="Launch interactive chat terminal")
     args = parser.parse_args()
+
+    # Launch chat terminal if requested
+    if args.chat:
+        from chat import start_chat
+        return start_chat(args)
 
     # Initialize config
     config = ReconConfig(
