@@ -57,6 +57,10 @@ class ChatMessage(BaseModel):
     content: str
 
 
+class SkillUpdateRequest(BaseModel):
+    content: str
+
+
 class ChatRequest(BaseModel):
     message: str
     thread_id: str = "default"
@@ -439,6 +443,112 @@ def get_observatory_detail(report_type: str, date: str):
         raise HTTPException(status_code=404, detail=f"No report for {report_type} on {date}")
     with open(path) as f:
         return json.load(f)
+
+
+# ---------- Skills ----------
+
+import yaml as _yaml
+
+
+def _load_skill_registry():
+    """Load skills from registry.yaml and resolve file paths."""
+    registry_path = os.path.join("skills", "registry.yaml")
+    if not os.path.exists(registry_path):
+        return []
+
+    with open(registry_path) as f:
+        data = _yaml.safe_load(f)
+
+    skills_dir = "skills"
+    entries = []
+    for s in data.get("skills", []):
+        name = s["name"]
+        rel_path = s["path"]
+        # Resolve path relative to skills/ dir
+        full_path = os.path.normpath(os.path.join(skills_dir, rel_path))
+        if not os.path.exists(full_path):
+            continue
+
+        # Infer tier from name prefix
+        if name.startswith("platform_"):
+            tier = "Platform"
+        elif name.startswith("domain_"):
+            tier = "Domain"
+        elif name.startswith("client_"):
+            tier = "Client"
+        else:
+            tier = "Base"
+
+        stat = os.stat(full_path)
+        entries.append({
+            "id": name,
+            "filename": os.path.basename(full_path),
+            "path": full_path,
+            "tier": tier,
+            "size_bytes": stat.st_size,
+            "last_modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+            "priority": s.get("priority", 0),
+            "trigger_patterns": s.get("trigger_patterns", []),
+        })
+
+    entries.sort(key=lambda e: e["priority"])
+    return entries
+
+
+@app.get("/api/skills")
+def list_skills():
+    """List all registered skill files with metadata."""
+    entries = _load_skill_registry()
+    # Strip internal path from response
+    return [{k: v for k, v in e.items() if k != "path"} for e in entries]
+
+
+@app.get("/api/skills/{skill_id}")
+def get_skill(skill_id: str):
+    """Get a skill file's full content and metadata."""
+    entries = _load_skill_registry()
+    entry = next((e for e in entries if e["id"] == skill_id), None)
+    if not entry:
+        raise HTTPException(status_code=404, detail=f"Skill '{skill_id}' not found")
+
+    with open(entry["path"], encoding="utf-8") as f:
+        content = f.read()
+
+    return {
+        "id": entry["id"],
+        "filename": entry["filename"],
+        "tier": entry["tier"],
+        "content": content,
+        "size_bytes": entry["size_bytes"],
+        "last_modified": entry["last_modified"],
+        "trigger_patterns": entry["trigger_patterns"],
+    }
+
+
+@app.put("/api/skills/{skill_id}")
+def update_skill(skill_id: str, body: SkillUpdateRequest):
+    """Update a skill file's content."""
+    if not body.content or not body.content.strip():
+        raise HTTPException(status_code=400, detail="Content cannot be empty")
+    if len(body.content) > 100_000:
+        raise HTTPException(status_code=400, detail="Content exceeds 100KB limit")
+
+    entries = _load_skill_registry()
+    entry = next((e for e in entries if e["id"] == skill_id), None)
+    if not entry:
+        raise HTTPException(status_code=404, detail=f"Skill '{skill_id}' not found")
+
+    with open(entry["path"], "w", encoding="utf-8") as f:
+        f.write(body.content)
+
+    stat = os.stat(entry["path"])
+    return {
+        "id": skill_id,
+        "filename": entry["filename"],
+        "saved": True,
+        "size_bytes": stat.st_size,
+        "last_modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+    }
 
 
 # ---------- Data Explorer ----------
