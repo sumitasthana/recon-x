@@ -126,4 +126,13 @@ body {
   .badge-info {
     @apply badge bg-blue-500/10 text-blue-400 border border-blue-500/20;
   }
+
+  /* Z-index layering for floating chat */
+  .z-90 {
+    z-index: 90;
+  }
+
+  .z-100 {
+    z-index: 100;
+  }
 }

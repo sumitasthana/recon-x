@@ -9,6 +9,7 @@ import DataExplorer from './components/reconx/DataExplorer';
 import ChatPanel from './components/reconx/ChatPanel';
 import Observatory from './components/reconx/Observatory';
 import SkillBrowser from './components/reconx/SkillBrowser';
+import FloatingChat from './components/reconx/FloatingChat';
 
 const STEP_DURATION = 6500;
 
@@ -70,6 +71,8 @@ function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedReport, setSelectedReport] = useState(null);
   const [reportDate, setReportDate] = useState('2026-04-04');
+  const [floatingChatOpen, setFloatingChatOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const { reports: availableReports, loading: reportsLoading } = useReports();
   const { context: reportContext } = useReportContext(selectedReport);
@@ -278,9 +281,34 @@ function App() {
               {activeTab === 'data' && '— Explore source database tables'}
             </span>
           </div>
-          <div className="text-[11px] text-zinc-700 font-mono">
-            Intelligent regulatory reconciliation
-          </div>
+
+          {/* FloatingChat trigger button */}
+          <button
+            onClick={() => setFloatingChatOpen(!floatingChatOpen)}
+            className="relative flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[12px] font-medium text-white transition-all"
+            style={{
+              backgroundColor: floatingChatOpen ? 'rgba(24,95,165,0.25)' : 'rgba(255,255,255,0.1)',
+              border: `1px solid ${floatingChatOpen ? '#185FA5' : 'rgba(255,255,255,0.15)'}`
+            }}
+          >
+            <div
+              className="w-[14px] h-[14px] rounded flex items-center justify-center text-[9px] font-semibold"
+              style={{
+                background: 'linear-gradient(135deg, #185FA5 0%, #0F6E56 100%)',
+              }}
+            >
+              Rx
+            </div>
+            <span>ReconX</span>
+            {unreadCount > 0 && !floatingChatOpen && (
+              <div
+                className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
+                style={{ backgroundColor: '#f59e0b' }}
+              >
+                {unreadCount}
+              </div>
+            )}
+          </button>
         </div>
 
         {/* ── Page content ────────────────────────────── */}
@@ -444,6 +472,16 @@ function App() {
           )}
         </div>
       </main>
+
+      {/* FloatingChat - persists across all tabs */}
+      <FloatingChat
+        isOpen={floatingChatOpen}
+        onClose={() => setFloatingChatOpen(false)}
+        activeTab={activeTab}
+        reportPhase={phase}
+        breakCount={apiReport?.total_breaks}
+        onUnreadChange={setUnreadCount}
+      />
     </div>
   );
 }
