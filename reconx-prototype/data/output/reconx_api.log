@@ -272,3 +272,244 @@
 {"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T02:15:54.583033Z"}
 {"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-13T02:15:54.583095Z"}
 {"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-13T02:15:54.608785Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T18:09:02.120716Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T18:09:02.121369Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-13T18:09:02.121511Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-13T18:09:02.163531Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T18:09:02.242526Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T18:09:02.242951Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-13T18:09:02.243081Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-13T18:09:02.289633Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T18:09:03.683979Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T18:09:03.684664Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T18:09:03.690763Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T18:09:03.691101Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T18:13:38.016882Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T18:13:38.017415Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-13T18:13:38.017599Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-13T18:13:38.055330Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T18:13:38.124709Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T18:13:38.125123Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-13T18:13:38.125237Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-13T18:13:38.162294Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T18:13:54.139024Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T18:13:54.139976Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T18:13:54.141523Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T18:13:54.141860Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T18:14:20.473155Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T18:14:20.474494Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T18:14:20.474607Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T18:14:20.474942Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T18:14:32.040130Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T18:14:32.040617Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-13T18:14:32.065577Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "total_rows": 1000, "event": "extract.total_rows", "level": "info", "timestamp": "2026-04-13T18:14:32.104404Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "table_counts": {"T10": 70, "T13": 78, "T14": 57, "T9": 81, "T6": 76, "T2": 67, "T3": 68, "T11": 78, "T4": 86, "T1": 68, "T12": 60, "T7": 79, "T5": 66, "T8": 66}, "event": "extract.table_counts", "level": "info", "timestamp": "2026-04-13T18:14:32.111841Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "table_notionals": {"T2": "Decimal('2812705964.550000')", "T3": "Decimal('2400077917.270000')", "T11": "Decimal('3293022884.360000')", "T9": "Decimal('3339285892.980000')", "T6": "Decimal('3321342939.380000')", "T4": "Decimal('3442295012.850000')", "T1": "Decimal('2431019733.720000')", "T12": "Decimal('2277455852.210000')", "T7": "Decimal('3386616035.200000')", "T5": "Decimal('2915635044.160000')", "T8": "Decimal('2454541784.680000')", "T10": "Decimal('3034971939.570000')", "T13": "Decimal('3436712137.210000')", "T14": "Decimal('2223145214.080000')"}, "event": "extract.table_notionals", "level": "info", "timestamp": "2026-04-13T18:14:32.117313Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "fx_rates": {"EUR": "Decimal('1.0825000000')", "GBP": "Decimal('1.2650000000')", "JPY": "Decimal('0.0067000000')", "CAD": "Decimal('0.7250000000')", "AUD": "Decimal('0.6530000000')", "CHF": "Decimal('1.1350000000')", "CNY": "Decimal('0.1385000000')", "MXN": "Decimal('0.0490000000')"}, "fx_rate_source": "BLOOMBERG_BFIX_EOD", "event": "extract.fx_rates", "level": "info", "timestamp": "2026-04-13T18:14:32.120222Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "count": 220, "event": "extract.hqla_positions", "level": "info", "timestamp": "2026-04-13T18:14:32.125798Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "count": 0, "event": "extract.fwd_start_candidates", "level": "info", "timestamp": "2026-04-13T18:14:32.127576Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "count": 2, "leis": ["NEWCP001XXXXXXXXXXXX", "NEWCP002XXXXXXXXXXXX"], "event": "extract.unsynced_leis", "level": "info", "timestamp": "2026-04-13T18:14:32.128905Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "total_rows": 1000, "table_count": 14, "event": "node.complete", "level": "info", "timestamp": "2026-04-13T18:14:32.130114Z"}
+{"node": "extract_target", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-13T18:14:32.137486Z"}
+{"node": "extract_target", "report_date": "2026-04-04", "config": "data/axiomsl/fr2052a_config.xml", "log": "data/axiomsl/fr2052a_processing.log", "output": "data/axiomsl/fr2052a_target.csv", "event": "extract.files", "level": "info", "timestamp": "2026-04-13T18:14:32.137830Z"}
+{"node": "extract_target", "report_date": "2026-04-04", "loaded": 0, "excluded": 0, "fx_rates_count": 0, "event": "extract.log.complete", "level": "info", "timestamp": "2026-04-13T18:14:32.138099Z"}
+{"node": "extract_target", "section": "IngestionFilters", "model": "anthropic.claude-3-haiku-20240307-v1:0", "event": "llm.xml_parse", "level": "info", "timestamp": "2026-04-13T18:14:33.243513Z"}
+{"node": "extract_target", "section": "FXConfig", "model": "anthropic.claude-3-haiku-20240307-v1:0", "event": "llm.xml_parse", "level": "info", "timestamp": "2026-04-13T18:14:35.298983Z"}
+{"node": "extract_target", "section": "HQLAConfig", "model": "anthropic.claude-3-haiku-20240307-v1:0", "event": "llm.xml_parse", "level": "info", "timestamp": "2026-04-13T18:14:36.546688Z"}
+{"node": "extract_target", "report_date": "2026-04-04", "filters_count": 2, "missing_leis_count": 0, "event": "extract.xml.complete", "level": "info", "timestamp": "2026-04-13T18:14:37.518048Z"}
+{"node": "extract_target", "report_date": "2026-04-04", "table_count": 10, "hqla_downgrades": 0, "event": "extract.json.complete", "level": "info", "timestamp": "2026-04-13T18:14:37.530548Z"}
+{"node": "extract_target", "report_date": "2026-04-04", "total_loaded": 0, "total_excluded": 0, "hqla_downgrades": 0, "event": "node.complete", "level": "info", "timestamp": "2026-04-13T18:14:37.530821Z"}
+{"node": "compare", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-13T18:14:37.532700Z"}
+{"node": "compare", "report_date": "2026-04-04", "source_rows": 1000, "target_rows": 0, "delta": -1000, "delta_pct": -100.0, "event": "compare.row_delta", "level": "info", "timestamp": "2026-04-13T18:14:37.532927Z"}
+{"node": "compare", "report_date": "2026-04-04", "table_count": 14, "event": "compare.table_deltas", "level": "info", "timestamp": "2026-04-13T18:14:37.533274Z"}
+{"node": "compare", "report_date": "2026-04-04", "fx_count": 8, "event": "compare.fx_deltas", "level": "info", "timestamp": "2026-04-13T18:14:37.533485Z"}
+{"node": "compare", "report_date": "2026-04-04", "silent_count": 2, "exposure_pct": 0.0, "event": "compare.silent_exposure", "level": "info", "timestamp": "2026-04-13T18:14:37.533594Z"}
+{"node": "compare", "report_date": "2026-04-04", "overall_coverage_pct": 0.0, "orphan_count": 0, "event": "compare.coverage", "level": "info", "timestamp": "2026-04-13T18:14:37.533690Z"}
+{"node": "compare", "report_date": "2026-04-04", "row_delta": -1000, "coverage_pct": 0.0, "silent_filters": 2, "event": "node.complete", "level": "info", "timestamp": "2026-04-13T18:14:37.533788Z"}
+{"node": "classify", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-13T18:14:37.535082Z"}
+{"node": "classify", "report_date": "2026-04-04", "skill": "domain_fr2052a", "chars": 4947, "event": "skill.loaded", "level": "info", "timestamp": "2026-04-13T18:14:37.536189Z"}
+{"node": "classify", "report_date": "2026-04-04", "model": "anthropic.claude-3-haiku-20240307-v1:0", "event": "llm.classify.start", "level": "info", "timestamp": "2026-04-13T18:14:37.945399Z"}
+{"node": "classify", "report_date": "2026-04-04", "response_chars": 1733, "event": "llm.classify.complete", "level": "info", "timestamp": "2026-04-13T18:14:42.714201Z"}
+{"node": "classify", "report_date": "2026-04-04", "method": "LLM_CLASSIFIED", "breaks_count": 3, "event": "classify.method", "level": "info", "timestamp": "2026-04-13T18:14:42.714486Z"}
+{"node": "classify", "report_date": "2026-04-04", "total_breaks": 3, "recon_score": 45.0, "method": "LLM_CLASSIFIED", "event": "node.complete", "level": "info", "timestamp": "2026-04-13T18:14:42.716611Z"}
+{"run": "api", "report_type": "fr2052a", "report_date": "2026-04-04", "event": "api.recon.complete", "level": "info", "timestamp": "2026-04-13T18:14:42.721390Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-13T18:20:17.313187Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-13T18:20:17.313534Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-13T18:20:17.313651Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-13T18:20:17.354159Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-13T18:20:17.378070Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "total_rows": 49, "event": "extract.total_rows", "level": "info", "timestamp": "2026-04-13T18:20:17.418553Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "schedule_counts": {"G-2": 11, "G-4": 6, "G-5": 8, "G-1": 12, "G-3": 12}, "event": "extract.schedule_counts", "level": "info", "timestamp": "2026-04-13T18:20:17.424513Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "schedule_exposures": {"G-5": "Decimal('8838901837.85')", "G-1": "Decimal('12568434831.63')", "G-3": "Decimal('11925919493.87')", "G-2": "Decimal('12393573425.35')", "G-4": "Decimal('7785548047.19')"}, "event": "extract.schedule_exposures", "level": "info", "timestamp": "2026-04-13T18:20:17.427594Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "count": 15, "event": "extract.top_50", "level": "info", "timestamp": "2026-04-13T18:20:17.434517Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "mappings": 15, "event": "extract.cpty_hierarchy", "level": "info", "timestamp": "2026-04-13T18:20:17.436398Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "count": 13, "event": "extract.netting_sets", "level": "info", "timestamp": "2026-04-13T18:20:17.440598Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "count": 6, "event": "extract.collateral_haircuts", "level": "info", "timestamp": "2026-04-13T18:20:17.442418Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "count": 15, "event": "extract.exemption_statuses", "level": "info", "timestamp": "2026-04-13T18:20:17.443921Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "count": 8, "source": "BLOOMBERG_BFIX_EOD", "event": "extract.fx_rates", "level": "info", "timestamp": "2026-04-13T18:20:17.445630Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "tier1_capital": 185000000.0, "event": "extract.tier1_capital", "level": "info", "timestamp": "2026-04-13T18:20:17.448505Z"}
+{"node": "extract_source", "report_type": "fr2590", "report_date": "2026-04-04", "total_rows": 49, "counterparties": 15, "schedules": 5, "event": "node.complete", "level": "info", "timestamp": "2026-04-13T18:20:17.448855Z"}
+{"node": "extract_target", "report_type": "fr2590", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-13T18:20:17.457460Z"}
+{"node": "extract_target", "report_type": "fr2590", "report_date": "2026-04-04", "config": "data/axiomsl/fr2590_axiomsl_config_files.xml", "log": "data/axiomsl/fr2590_processing.log", "output": "data/axiomsl/fr2590_target.json", "event": "extract.files", "level": "info", "timestamp": "2026-04-13T18:20:17.457672Z"}
+{"error": "Double hyphen within comment: <!--\n=================================================, line 5, column 18 (<string>, line 5)", "event": "xml.parse_error", "level": "warning", "timestamp": "2026-04-13T18:20:17.460793Z"}
+{"node": "extract_target", "report_type": "fr2590", "report_date": "2026-04-04", "filters_count": 0, "hierarchy_stale_days": 0, "exposure_method": "unknown", "event": "extract.xml.complete", "level": "info", "timestamp": "2026-04-13T18:20:17.461117Z"}
+{"node": "extract_target", "report_type": "fr2590", "report_date": "2026-04-04", "loaded": 338, "excluded": 12, "event": "extract.log.complete", "level": "info", "timestamp": "2026-04-13T18:20:17.463358Z"}
+{"node": "extract_target", "report_type": "fr2590", "report_date": "2026-04-04", "schedule_count": 7, "limit_breaches": 0, "event": "extract.json.complete", "level": "info", "timestamp": "2026-04-13T18:20:17.464542Z"}
+{"node": "extract_target", "report_type": "fr2590", "report_date": "2026-04-04", "total_loaded": 338, "total_excluded": 12, "hierarchy_mismatches": 0, "event": "node.complete", "level": "info", "timestamp": "2026-04-13T18:20:17.464777Z"}
+{"node": "compare", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-13T18:20:17.466431Z"}
+{"node": "compare", "report_date": "2026-04-04", "source_rows": 49, "target_rows": 338, "delta": 289, "delta_pct": 589.8, "event": "compare.row_delta", "level": "info", "timestamp": "2026-04-13T18:20:17.466917Z"}
+{"node": "compare", "report_date": "2026-04-04", "table_count": 7, "event": "compare.table_deltas", "level": "info", "timestamp": "2026-04-13T18:20:17.467314Z"}
+{"node": "compare", "report_date": "2026-04-04", "fx_count": 11, "event": "compare.fx_deltas", "level": "info", "timestamp": "2026-04-13T18:20:17.467573Z"}
+{"node": "compare", "report_date": "2026-04-04", "silent_count": 0, "exposure_pct": 24.49, "event": "compare.silent_exposure", "level": "info", "timestamp": "2026-04-13T18:20:17.467827Z"}
+{"node": "compare", "report_date": "2026-04-04", "overall_coverage_pct": 689.8, "orphan_count": 301, "event": "compare.coverage", "level": "info", "timestamp": "2026-04-13T18:20:17.467937Z"}
+{"node": "compare", "report_date": "2026-04-04", "row_delta": 289, "coverage_pct": 689.8, "silent_filters": 0, "event": "node.complete", "level": "info", "timestamp": "2026-04-13T18:20:17.468046Z"}
+{"node": "classify", "report_type": "fr2590", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-13T18:20:17.469602Z"}
+{"node": "classify", "report_type": "fr2590", "report_date": "2026-04-04", "skill": "domain_fr2590", "chars": 6487, "event": "skill.loaded", "level": "info", "timestamp": "2026-04-13T18:20:17.471067Z"}
+{"node": "classify", "report_type": "fr2590", "report_date": "2026-04-04", "model": "anthropic.claude-3-haiku-20240307-v1:0", "event": "llm.classify.start", "level": "info", "timestamp": "2026-04-13T18:20:18.010534Z"}
+{"node": "classify", "report_type": "fr2590", "report_date": "2026-04-04", "response_chars": 3182, "event": "llm.classify.complete", "level": "info", "timestamp": "2026-04-13T18:20:27.248122Z"}
+{"node": "classify", "report_type": "fr2590", "report_date": "2026-04-04", "method": "LLM_CLASSIFIED", "breaks_count": 5, "event": "classify.method", "level": "info", "timestamp": "2026-04-13T18:20:27.248456Z"}
+{"node": "classify", "report_type": "fr2590", "report_date": "2026-04-04", "total_breaks": 5, "recon_score": 0.0, "method": "LLM_CLASSIFIED", "event": "node.complete", "level": "info", "timestamp": "2026-04-13T18:20:27.250589Z"}
+{"run": "api", "report_type": "fr2590", "report_date": "2026-04-04", "event": "api.recon.complete", "level": "info", "timestamp": "2026-04-13T18:20:27.251958Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-14T19:13:44.517645Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-14T19:13:44.518511Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-14T19:13:44.518720Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-14T19:13:44.591921Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-14T19:13:44.658233Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-14T19:13:44.658418Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-14T19:13:44.658487Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-14T19:13:44.685530Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-14T19:20:38.451812Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-14T19:20:38.452207Z"}
+{"run": "chat", "thread": "test-1", "response_len": 284, "event": "chat.complete", "level": "info", "timestamp": "2026-04-14T19:20:40.016856Z"}
+{"run": "chat", "thread": "test-1", "response_len": 307, "event": "chat.complete", "level": "info", "timestamp": "2026-04-14T19:20:52.809787Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-14T19:21:47.345763Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-14T19:21:47.346092Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-14T19:21:47.354407Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "total_rows": 1000, "event": "extract.total_rows", "level": "info", "timestamp": "2026-04-14T19:21:47.374073Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "table_counts": {"T12": 60, "T7": 79, "T5": 66, "T8": 66, "T2": 67, "T4": 86, "T1": 68, "T9": 81, "T6": 76, "T10": 70, "T13": 78, "T3": 68, "T11": 78, "T14": 57}, "event": "extract.table_counts", "level": "info", "timestamp": "2026-04-14T19:21:47.377628Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "table_notionals": {"T10": "Decimal('3034971939.570000')", "T13": "Decimal('3436712137.210000')", "T3": "Decimal('2400077917.270000')", "T11": "Decimal('3293022884.360000')", "T14": "Decimal('2223145214.080000')", "T12": "Decimal('2277455852.210000')", "T7": "Decimal('3386616035.200000')", "T5": "Decimal('2915635044.160000')", "T8": "Decimal('2454541784.680000')", "T9": "Decimal('3339285892.980000')", "T6": "Decimal('3321342939.380000')", "T4": "Decimal('3442295012.850000')", "T1": "Decimal('2431019733.720000')", "T2": "Decimal('2812705964.550000')"}, "event": "extract.table_notionals", "level": "info", "timestamp": "2026-04-14T19:21:47.381131Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "fx_rates": {"EUR": "Decimal('1.0825000000')", "GBP": "Decimal('1.2650000000')", "JPY": "Decimal('0.0067000000')", "CAD": "Decimal('0.7250000000')", "AUD": "Decimal('0.6530000000')", "CHF": "Decimal('1.1350000000')", "CNY": "Decimal('0.1385000000')", "MXN": "Decimal('0.0490000000')"}, "fx_rate_source": "BLOOMBERG_BFIX_EOD", "event": "extract.fx_rates", "level": "info", "timestamp": "2026-04-14T19:21:47.383318Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "count": 220, "event": "extract.hqla_positions", "level": "info", "timestamp": "2026-04-14T19:21:47.387123Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "count": 0, "event": "extract.fwd_start_candidates", "level": "info", "timestamp": "2026-04-14T19:21:47.387714Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "count": 2, "leis": ["NEWCP001XXXXXXXXXXXX", "NEWCP002XXXXXXXXXXXX"], "event": "extract.unsynced_leis", "level": "info", "timestamp": "2026-04-14T19:21:47.388690Z"}
+{"node": "extract_source", "report_date": "2026-04-04", "total_rows": 1000, "table_count": 14, "event": "node.complete", "level": "info", "timestamp": "2026-04-14T19:21:47.388981Z"}
+{"node": "extract_target", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-14T19:21:47.392097Z"}
+{"node": "extract_target", "report_date": "2026-04-04", "config": "data/axiomsl/fr2052a_config.xml", "log": "data/axiomsl/fr2052a_processing.log", "output": "data/axiomsl/fr2052a_target.csv", "event": "extract.files", "level": "info", "timestamp": "2026-04-14T19:21:47.392228Z"}
+{"node": "extract_target", "report_date": "2026-04-04", "loaded": 0, "excluded": 0, "fx_rates_count": 0, "event": "extract.log.complete", "level": "info", "timestamp": "2026-04-14T19:21:47.392845Z"}
+{"node": "extract_target", "section": "IngestionFilters", "model": "anthropic.claude-3-haiku-20240307-v1:0", "event": "llm.xml_parse", "level": "info", "timestamp": "2026-04-14T19:21:47.546412Z"}
+{"node": "extract_target", "section": "FXConfig", "model": "anthropic.claude-3-haiku-20240307-v1:0", "event": "llm.xml_parse", "level": "info", "timestamp": "2026-04-14T19:21:49.196401Z"}
+{"node": "extract_target", "section": "HQLAConfig", "model": "anthropic.claude-3-haiku-20240307-v1:0", "event": "llm.xml_parse", "level": "info", "timestamp": "2026-04-14T19:21:50.002786Z"}
+{"node": "extract_target", "report_date": "2026-04-04", "filters_count": 2, "missing_leis_count": 0, "event": "extract.xml.complete", "level": "info", "timestamp": "2026-04-14T19:21:51.207166Z"}
+{"node": "extract_target", "report_date": "2026-04-04", "table_count": 10, "hqla_downgrades": 0, "event": "extract.json.complete", "level": "info", "timestamp": "2026-04-14T19:21:51.211067Z"}
+{"node": "extract_target", "report_date": "2026-04-04", "total_loaded": 0, "total_excluded": 0, "hqla_downgrades": 0, "event": "node.complete", "level": "info", "timestamp": "2026-04-14T19:21:51.211162Z"}
+{"node": "compare", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-14T19:21:51.211702Z"}
+{"node": "compare", "report_date": "2026-04-04", "source_rows": 1000, "target_rows": 0, "delta": -1000, "delta_pct": -100.0, "event": "compare.row_delta", "level": "info", "timestamp": "2026-04-14T19:21:51.211773Z"}
+{"node": "compare", "report_date": "2026-04-04", "table_count": 14, "event": "compare.table_deltas", "level": "info", "timestamp": "2026-04-14T19:21:51.211877Z"}
+{"node": "compare", "report_date": "2026-04-04", "fx_count": 8, "event": "compare.fx_deltas", "level": "info", "timestamp": "2026-04-14T19:21:51.212319Z"}
+{"node": "compare", "report_date": "2026-04-04", "silent_count": 2, "exposure_pct": 0.0, "event": "compare.silent_exposure", "level": "info", "timestamp": "2026-04-14T19:21:51.212458Z"}
+{"node": "compare", "report_date": "2026-04-04", "overall_coverage_pct": 0.0, "orphan_count": 0, "event": "compare.coverage", "level": "info", "timestamp": "2026-04-14T19:21:51.212600Z"}
+{"node": "compare", "report_date": "2026-04-04", "row_delta": -1000, "coverage_pct": 0.0, "silent_filters": 2, "event": "node.complete", "level": "info", "timestamp": "2026-04-14T19:21:51.212848Z"}
+{"node": "classify", "report_date": "2026-04-04", "event": "node.start", "level": "info", "timestamp": "2026-04-14T19:21:51.213501Z"}
+{"node": "classify", "report_date": "2026-04-04", "skill": "domain_fr2052a", "chars": 4947, "event": "skill.loaded", "level": "info", "timestamp": "2026-04-14T19:21:51.214255Z"}
+{"node": "classify", "report_date": "2026-04-04", "model": "anthropic.claude-3-haiku-20240307-v1:0", "event": "llm.classify.start", "level": "info", "timestamp": "2026-04-14T19:21:51.339483Z"}
+{"node": "classify", "report_date": "2026-04-04", "response_chars": 1718, "event": "llm.classify.complete", "level": "info", "timestamp": "2026-04-14T19:21:56.539260Z"}
+{"node": "classify", "report_date": "2026-04-04", "method": "LLM_CLASSIFIED", "breaks_count": 3, "event": "classify.method", "level": "info", "timestamp": "2026-04-14T19:21:56.539452Z"}
+{"node": "classify", "report_date": "2026-04-04", "total_breaks": 3, "recon_score": 45.0, "method": "LLM_CLASSIFIED", "event": "node.complete", "level": "info", "timestamp": "2026-04-14T19:21:56.540814Z"}
+{"run": "chat", "thread": "chat-1776194498493", "response_len": 780, "event": "chat.complete", "level": "info", "timestamp": "2026-04-14T19:21:58.755148Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-14T19:24:35.702807Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-14T19:24:35.703053Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-14T19:24:35.703127Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-14T19:24:35.723753Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-14T19:24:35.756178Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-14T19:24:35.756389Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-14T19:24:35.756464Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-14T19:24:35.779401Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-14T19:24:39.442630Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-14T19:24:39.443644Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-14T19:24:39.443749Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-14T19:24:39.443974Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-14T19:24:48.450348Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-14T19:24:48.450655Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-14T19:24:48.450750Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-14T19:24:48.473763Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-14T19:24:48.506115Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-14T19:24:48.506335Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-14T19:24:48.506387Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-14T19:24:48.524364Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-14T19:25:34.835298Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-14T19:25:34.835606Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-14T19:25:34.835699Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-14T19:25:34.859559Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-14T19:25:34.899051Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-14T19:25:34.899273Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-14T19:25:34.899365Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-14T19:25:34.925565Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-14T19:25:46.212850Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-14T19:25:46.213207Z"}
+{"run": "chat", "thread": "chat-1776194741186", "response_len": 305, "event": "chat.complete", "level": "info", "timestamp": "2026-04-14T19:25:48.920083Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-14T19:52:51.368598Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-14T19:52:51.368933Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-14T19:52:51.369019Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-14T19:52:51.393341Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-14T19:52:51.437080Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-14T19:52:51.437342Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-14T19:52:51.437410Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-14T19:52:51.457308Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-14T19:54:09.916914Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-14T19:54:09.917162Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-14T19:54:09.917230Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-14T19:54:09.940213Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-14T19:54:09.980850Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-14T19:54:09.981251Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-14T19:54:09.981335Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-14T19:54:10.002516Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-14T19:54:26.177000Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-14T19:54:26.177286Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-14T19:54:26.177354Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-14T19:54:26.201634Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-14T19:54:26.236957Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-14T19:54:26.237224Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-14T19:54:26.237287Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-14T19:54:26.260161Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-14T19:54:30.107272Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-14T19:54:30.107490Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-14T19:54:30.107569Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-14T19:54:30.131413Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-14T19:54:30.178266Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-14T19:54:30.178481Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-14T19:54:30.178593Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-14T19:54:30.200447Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-14T19:54:31.586909Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-14T19:54:31.587745Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-14T19:54:31.587814Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-14T19:54:31.588066Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-14T21:41:32.056094Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-14T21:41:32.056517Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-14T21:41:32.056604Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-14T21:41:32.082752Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-14T21:41:32.122611Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-14T21:41:32.122822Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-14T21:41:32.122869Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-14T21:41:32.143696Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-14T21:58:55.164744Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-14T21:58:55.165069Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-14T21:58:55.165258Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-14T21:58:55.191628Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-14T21:58:55.240013Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-14T21:58:55.240345Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-14T21:58:55.240452Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-14T21:58:55.266479Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-14T21:58:56.598673Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-14T21:58:56.602547Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-14T21:58:56.604133Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-14T21:58:56.604712Z"}
+{"run": "chat", "thread": "chat-1776203940696", "response_len": 678, "event": "chat.complete", "level": "info", "timestamp": "2026-04-14T21:59:08.700645Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-15T00:51:09.656588Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-15T00:51:09.657038Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-15T00:51:09.657109Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-15T00:51:09.674385Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.start", "level": "info", "timestamp": "2026-04-15T00:51:09.704442Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "scaffold.ensure_database.exists", "level": "info", "timestamp": "2026-04-15T00:51:09.704651Z"}
+{"db_path": "data/snowflake/fr2052a.duckdb", "event": "fr2590_scaffold.start", "level": "info", "timestamp": "2026-04-15T00:51:09.704703Z"}
+{"event": "fr2590_scaffold.exists", "level": "info", "timestamp": "2026-04-15T00:51:09.718213Z"}

@@ -1,33 +1,18 @@
 import React from 'react';
-import BreakCard from './BreakCard';
+import BreakControlCard from './BreakControlCard';
 import ScoreRing from './ScoreRing';
+import { useBreakRules } from '../../hooks/useBreakDetail';
 
-const SEVERITY_COLORS = {
-  CRITICAL: '#E24B4A',
-  HIGH: '#E24B4A',
-  MEDIUM: '#BA7517',
-  LOW: '#22c55e',
-};
-
-const BreakReport = ({ report, visible }) => {
+const BreakReport = ({ report, visible, reportId = 'fr2052a' }) => {
   if (!visible || !report) return null;
 
-  const breaks = (report.breaks || []).map((b) => ({
-    id: b.break_id,
-    title: b.category.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()),
-    severity: b.severity,
-    area: b.table_assignment ? `Table ${b.table_assignment}` : 'Multiple tables',
-    headline: b.description,
-    detail: `${b.root_cause}. ${b.recommended_action}`,
-    impact: b.notional_impact_usd
-      ? `$${(b.notional_impact_usd / 1e6).toFixed(1)}M`
-      : b.source_count
-      ? `${b.source_count} affected`
-      : 'Coverage gap',
-    positions: b.source_count || 0,
-    root: b.root_cause,
-    color: SEVERITY_COLORS[b.severity] || SEVERITY_COLORS.MEDIUM,
-  }));
+  // Try to fetch enriched break data with rules
+  const { breaks: enrichedBreaks, loading, error } = useBreakRules(reportId);
+
+  // Fallback to flat break data if enriched data fails or is loading
+  const breaksToRender = (!loading && !error && enrichedBreaks.length > 0)
+    ? enrichedBreaks
+    : (report.breaks || []);
 
   const stats = [
     { label: 'Total breaks', value: String(report.total_breaks), highlight: report.total_breaks > 0 },
@@ -73,10 +58,28 @@ const BreakReport = ({ report, visible }) => {
 
       {/* Break cards */}
       <div className="space-y-3">
-        {breaks.map((brk, index) => (
-          <BreakCard key={brk.id} brk={brk} animDelay={index * 0.12} />
+        {breaksToRender.map((brk, index) => (
+          <BreakControlCard key={brk.break_id} brk={brk} animDelay={index * 0.12} />
         ))}
       </div>
+
+      {/* Punchline callout for BRK-004 */}
+      {breaksToRender.some(b => b.break_id === 'BRK-004') && (
+        <div
+          className="mt-6 bg-surface rounded-lg px-4 py-4 text-[13px] text-zinc-300"
+          style={{ borderLeft: '2px solid #534AB7' }}
+        >
+          <div className="font-medium text-zinc-100 mb-2">What made this possible</div>
+          <p>
+            BRK-004 was detected by reading the AxiomSL XML configuration file directly — not by
+            analyzing application logs. The silent filter leaves zero audit trail, making it
+            completely invisible to traditional log-based reconciliation approaches. ReconX's
+            target system intelligence skill reads ingestion filter definitions at the source,
+            enabling detection of breaks that would otherwise go unnoticed until regulatory
+            submission.
+          </p>
+        </div>
+      )}
     </div>
   );
 };

@@ -285,6 +285,323 @@ async def chat(request: ChatRequest):
     return EventSourceResponse(event_stream())
 
 
+# ---------- Break Detail Endpoints ----------
+
+@app.get("/api/reports/{report_id}/breaks")
+def get_enriched_breaks(report_id: str):
+    """Get enriched break data with nested evidence rules for a report type.
+    
+    Returns the most recent break report with synthetic rule evidence data.
+    """
+    try:
+        plugin = reports.get_plugin(report_id)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    
+    # Find most recent report file
+    config = ReconConfig(report_type=report_id)
+    pattern = os.path.join(config.output_path, f"break_report_{report_id}_*.json")
+    files = glob.glob(pattern)
+    if not files:
+        return []
+    
+    latest_file = max(files, key=os.path.getmtime)
+    
+    with open(latest_file) as f:
+        report_data = json.load(f)
+    
+    # Enrich each break with synthetic rule data
+    enriched_breaks = []
+    for brk in report_data.get("breaks", []):
+        enriched = _enrich_break_with_rules(brk, report_id)
+        enriched_breaks.append(enriched)
+    
+    return enriched_breaks
+
+
+def _enrich_break_with_rules(brk: dict, report_id: str) -> dict:
+    """Add synthetic rule evidence data to a break."""
+    break_id = brk["break_id"]
+    
+    # Base enriched break
+    enriched = {
+        **brk,
+        "detection_method": "Automated reconciliation + AI classification",
+        "rules": [],
+        "lineage": {},
+        "failed_records_sample": []
+    }
+    
+    # Synthetic rules based on break type
+    if break_id == "BRK-001":
+        enriched["rules"] = [
+            {
+                "rule_id": "BRK-001-R1",
+                "rule_name": "FX rate delta exceeds tolerance",
+                "source_table": "DIM_FX_RATE",
+                "field": "fx_rate",
+                "status": "FAIL",
+                "checked_count": 4,
+                "failed_count": 2,
+                "pass_rate": 50.0,
+                "detail": {
+                    "threshold": 0.005,
+                    "actual_delta": 0.0011,
+                    "source_value": "EUR/USD 1.0842 (Bloomberg BFIX EOD)",
+                    "target_value": "EUR/USD 1.0831 (ECB prior-day)",
+                    "sql_expression": "ABS(source.fx_rate - target.fx_rate) > :tolerance_fx_delta"
+                },
+                "history_7d": [
+                    {"date": "2026-04-04", "pass_rate": 50.0, "status": "FAIL"},
+                    {"date": "2026-04-03", "pass_rate": 50.0, "status": "FAIL"},
+                    {"date": "2026-04-02", "pass_rate": 100.0, "status": "PASS"},
+                    {"date": "2026-04-01", "pass_rate": 100.0, "status": "PASS"},
+                    {"date": "2026-03-31", "pass_rate": 100.0, "status": "PASS"},
+                    {"date": "2026-03-30", "pass_rate": 100.0, "status": "PASS"},
+                    {"date": "2026-03-29", "pass_rate": 100.0, "status": "PASS"}
+                ]
+            },
+            {
+                "rule_id": "BRK-001-R2",
+                "rule_name": "EUR notional variance within tolerance",
+                "source_table": "V_RECON_SCOPE",
+                "field": "notional_usd",
+                "status": "FAIL",
+                "checked_count": 30,
+                "failed_count": 30,
+                "pass_rate": 0.0,
+                "detail": {
+                    "threshold_pct": 0.01,
+                    "actual_variance_pct": 0.10,
+                    "notional_impacted": 1400000,
+                    "sql_expression": "ABS(1 - target.notional_usd / source.notional_usd) > :tolerance_notional_pct"
+                },
+                "history_7d": [
+                    {"date": "2026-04-04", "pass_rate": 0.0, "status": "FAIL"},
+                    {"date": "2026-04-03", "pass_rate": 0.0, "status": "FAIL"},
+                    {"date": "2026-04-02", "pass_rate": 100.0, "status": "PASS"},
+                    {"date": "2026-04-01", "pass_rate": 100.0, "status": "PASS"},
+                    {"date": "2026-03-31", "pass_rate": 100.0, "status": "PASS"},
+                    {"date": "2026-03-30", "pass_rate": 100.0, "status": "PASS"},
+                    {"date": "2026-03-29", "pass_rate": 100.0, "status": "PASS"}
+                ]
+            }
+        ]
+        enriched["lineage"] = {
+            "regulation": "FR 2052a Table 5 — Derivatives",
+            "requirement": "FX rate alignment between source and target systems",
+            "pipeline_stage": "Stage 3 · AxiomSL FX re-conversion"
+        }
+        enriched["failed_records_sample"] = [
+            {"position_id": "POS-10421", "currency": "EUR", "source_rate": 1.0842, "target_rate": 1.0831, "notional_eur": 42000000, "variance_usd": 46200},
+            {"position_id": "POS-10422", "currency": "EUR", "source_rate": 1.0842, "target_rate": 1.0831, "notional_eur": 85000000, "variance_usd": 93500},
+            {"position_id": "POS-10423", "currency": "EUR", "source_rate": 1.0842, "target_rate": 1.0831, "notional_eur": 127000000, "variance_usd": 139700}
+        ]
+    
+    elif break_id == "BRK-002":
+        enriched["rules"] = [
+            {
+                "rule_id": "BRK-002-R1",
+                "rule_name": "HQLA reference data freshness check",
+                "source_table": "DIM_HQLA_ELIGIBILITY",
+                "field": "last_refresh_date",
+                "status": "FAIL",
+                "checked_count": 1,
+                "failed_count": 1,
+                "pass_rate": 0.0,
+                "detail": {
+                    "threshold_days": 30,
+                    "actual_days": 95,
+                    "last_refresh": "2025-12-31",
+                    "report_date": "2026-04-04",
+                    "sql_expression": "DATEDIFF(day, hqla_ref.last_refresh_date, :report_date) > 30"
+                },
+                "history_7d": [
+                    {"date": "2026-04-04", "pass_rate": 0.0, "status": "FAIL"},
+                    {"date": "2026-04-03", "pass_rate": 0.0, "status": "FAIL"},
+                    {"date": "2026-04-02", "pass_rate": 0.0, "status": "FAIL"},
+                    {"date": "2026-04-01", "pass_rate": 0.0, "status": "FAIL"},
+                    {"date": "2026-03-31", "pass_rate": 0.0, "status": "FAIL"},
+                    {"date": "2026-03-30", "pass_rate": 0.0, "status": "FAIL"},
+                    {"date": "2026-03-29", "pass_rate": 0.0, "status": "FAIL"}
+                ]
+            },
+            {
+                "rule_id": "BRK-002-R2",
+                "rule_name": "HQLA level consistency check",
+                "source_table": "V_RECON_SCOPE",
+                "field": "hqla_level",
+                "status": "FAIL",
+                "checked_count": 3,
+                "failed_count": 3,
+                "pass_rate": 0.0,
+                "detail": {
+                    "source_level": "Level 1",
+                    "target_level": "Non-HQLA",
+                    "cusips_affected": 3,
+                    "sql_expression": "source.hqla_level != target.hqla_level AND source.hqla_level IN ('Level 1', 'Level 2A')"
+                },
+                "history_7d": [
+                    {"date": "2026-04-04", "pass_rate": 0.0, "status": "FAIL"},
+                    {"date": "2026-04-03", "pass_rate": 0.0, "status": "FAIL"},
+                    {"date": "2026-04-02", "pass_rate": 0.0, "status": "FAIL"},
+                    {"date": "2026-04-01", "pass_rate": 100.0, "status": "PASS"},
+                    {"date": "2026-03-31", "pass_rate": 100.0, "status": "PASS"},
+                    {"date": "2026-03-30", "pass_rate": 100.0, "status": "PASS"},
+                    {"date": "2026-03-29", "pass_rate": 100.0, "status": "PASS"}
+                ]
+            }
+        ]
+        enriched["lineage"] = {
+            "regulation": "FR 2052a Tables 2, 7, 8 — Liquid Assets",
+            "requirement": "HQLA eligibility and level classification per Fed bulletin",
+            "pipeline_stage": "Stage 2 · AxiomSL HQLA reference lookup"
+        }
+        enriched["failed_records_sample"] = [
+            {"cusip": "912828ZG8", "security_name": "US Treasury 2.5% 2031", "source_level": "Level 1", "target_level": "Non-HQLA", "notional_usd": 250000000},
+            {"cusip": "912828ZH6", "security_name": "US Treasury 2.75% 2032", "source_level": "Level 1", "target_level": "Non-HQLA", "notional_usd": 300000000},
+            {"cusip": "912828ZJ2", "security_name": "US Treasury 3.0% 2033", "source_level": "Level 1", "target_level": "Non-HQLA", "notional_usd": 150000000}
+        ]
+    
+    elif break_id == "BRK-003":
+        enriched["rules"] = [
+            {
+                "rule_id": "BRK-003-R1",
+                "rule_name": "Counterparty LEI presence check",
+                "source_table": "DIM_COUNTERPARTY",
+                "field": "lei",
+                "status": "FAIL",
+                "checked_count": 2,
+                "failed_count": 2,
+                "pass_rate": 0.0,
+                "detail": {
+                    "missing_leis": 2,
+                    "positions_affected": 12,
+                    "sql_expression": "source.lei IS NOT NULL AND target.lei IS NULL"
+                },
+                "history_7d": [
+                    {"date": "2026-04-04", "pass_rate": 0.0, "status": "FAIL"},
+                    {"date": "2026-04-03", "pass_rate": 0.0, "status": "FAIL"},
+                    {"date": "2026-04-02", "pass_rate": 100.0, "status": "PASS"},
+                    {"date": "2026-04-01", "pass_rate": 100.0, "status": "PASS"},
+                    {"date": "2026-03-31", "pass_rate": 100.0, "status": "PASS"},
+                    {"date": "2026-03-30", "pass_rate": 100.0, "status": "PASS"},
+                    {"date": "2026-03-29", "pass_rate": 100.0, "status": "PASS"}
+                ]
+            }
+        ]
+        enriched["lineage"] = {
+            "regulation": "FR 2052a — All counterparty-dependent tables",
+            "requirement": "Counterparty LEI synchronization between MDM and AxiomSL",
+            "pipeline_stage": "Stage 1 · Counterparty reference data sync"
+        }
+        enriched["failed_records_sample"] = [
+            {"counterparty_name": "Acme Capital Partners", "lei": "549300ABCDEF123456", "source_status": "Active", "target_status": "Not found", "positions": 7},
+            {"counterparty_name": "Global Derivatives LLC", "lei": "549300GHIJKL789012", "source_status": "Active", "target_status": "Not found", "positions": 5}
+        ]
+    
+    elif break_id == "BRK-004":
+        enriched["rules"] = [
+            {
+                "rule_id": "BRK-004-R1",
+                "rule_name": "Forward start date completeness",
+                "source_table": "V_BRK004_CANDIDATES",
+                "field": "forward_start_date",
+                "status": "FAIL",
+                "checked_count": 11,
+                "failed_count": 11,
+                "pass_rate": 0.0,
+                "detail": {
+                    "condition": "forward_start_flag = TRUE AND forward_start_date IS NULL",
+                    "positions_excluded": 11,
+                    "sql_expression": "forward_start_flag = TRUE AND forward_start_date IS NULL"
+                },
+                "history_7d": [
+                    {"date": "2026-04-04", "pass_rate": 0.0, "status": "FAIL"},
+                    {"date": "2026-04-03", "pass_rate": 0.0, "status": "FAIL"},
+                    {"date": "2026-04-02", "pass_rate": 0.0, "status": "FAIL"},
+                    {"date": "2026-04-01", "pass_rate": 0.0, "status": "FAIL"},
+                    {"date": "2026-03-31", "pass_rate": 100.0, "status": "PASS"},
+                    {"date": "2026-03-30", "pass_rate": 100.0, "status": "PASS"},
+                    {"date": "2026-03-29", "pass_rate": 100.0, "status": "PASS"}
+                ]
+            },
+            {
+                "rule_id": "BRK-004-R2",
+                "rule_name": "Silent filter audit trail check",
+                "source_table": "fr2052a_config.xml",
+                "field": "filter_action",
+                "status": "FAIL",
+                "checked_count": 1,
+                "failed_count": 1,
+                "pass_rate": 0.0,
+                "detail": {
+                    "filter_id": "FWD_START_INCOMPLETE",
+                    "action": "SILENT",
+                    "expected_action": "WARN",
+                    "log_entries": 0,
+                    "sql_expression": "N/A (XML configuration check)"
+                },
+                "history_7d": [
+                    {"date": "2026-04-04", "pass_rate": 0.0, "status": "FAIL"},
+                    {"date": "2026-04-03", "pass_rate": 0.0, "status": "FAIL"},
+                    {"date": "2026-04-02", "pass_rate": 0.0, "status": "FAIL"},
+                    {"date": "2026-04-01", "pass_rate": 0.0, "status": "FAIL"},
+                    {"date": "2026-03-31", "pass_rate": 100.0, "status": "PASS"},
+                    {"date": "2026-03-30", "pass_rate": 100.0, "status": "PASS"},
+                    {"date": "2026-03-29", "pass_rate": 100.0, "status": "PASS"}
+                ]
+            }
+        ]
+        enriched["lineage"] = {
+            "regulation": "FR 2052a Table 6 — FX Forwards (Appendix IV footnote 3)",
+            "requirement": "Forward-start positions route to OPEN maturity bucket when settlement date missing",
+            "pipeline_stage": "Stage 2 · AxiomSL ingestion filter (SILENT action)"
+        }
+        enriched["failed_records_sample"] = [
+            {"position_id": "FWD-20145", "currency_pair": "EUR/USD", "notional_eur": 15000000, "forward_start_flag": True, "forward_start_date": None, "filter_action": "SILENT"},
+            {"position_id": "FWD-20146", "currency_pair": "GBP/USD", "notional_gbp": 8000000, "forward_start_flag": True, "forward_start_date": None, "filter_action": "SILENT"},
+            {"position_id": "FWD-20147", "currency_pair": "JPY/USD", "notional_jpy": 1200000000, "forward_start_flag": True, "forward_start_date": None, "filter_action": "SILENT"}
+        ]
+    
+    return enriched
+
+
+@app.get("/api/reports/{report_id}/breaks/{break_id}/records")
+def get_break_records(report_id: str, break_id: str, limit: int = Query(default=20, le=100)):
+    """Get paginated failed records for a specific break."""
+    # Get enriched breaks
+    breaks = get_enriched_breaks(report_id)
+    
+    # Find the requested break
+    target_break = None
+    for brk in breaks:
+        if brk["break_id"] == break_id:
+            target_break = brk
+            break
+    
+    if not target_break:
+        raise HTTPException(status_code=404, detail=f"Break {break_id} not found")
+    
+    # Get failed records sample
+    sample = target_break.get("failed_records_sample", [])
+    if not sample:
+        return {"columns": [], "rows": [], "total": 0, "showing": 0}
+    
+    # Extract columns from first record
+    columns = list(sample[0].keys()) if sample else []
+    
+    # Limit rows
+    rows = sample[:limit]
+    
+    return {
+        "columns": columns,
+        "rows": rows,
+        "total": len(sample),
+        "showing": len(rows)
+    }
+
+
 # ---------- Observatory ----------
 
 def _scan_reports(output_path: str = "data/output") -> list[dict]:
