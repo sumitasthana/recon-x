@@ -1,6 +1,6 @@
 from langgraph.graph import StateGraph, START, END
 from core.state import ReconState
-from agents.compare import compare_node
+from core.compare import compare_node
 
 
 def build_graph(report_id: str = "fr2052a"):

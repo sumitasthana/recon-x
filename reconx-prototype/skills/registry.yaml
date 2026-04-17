@@ -4,17 +4,18 @@ skills:
     trigger_patterns: ["*"]
     priority: 0
 
-  # Domain skills — now also available inside report plugins
+  # Domain skills — canonical location is builtin/
   - name: domain_fr2052a
     path: builtin/domain_fr2052a/SKILL.md
-    plugin_path: ../reports/fr2052a/skill/SKILL.md
     trigger_patterns: ["fr2052a", "reconciliation", "break classification"]
     priority: 10
 
   - name: domain_fr2590
-    path: ../reports/fr2590/skill/SKILL.md
+    path: builtin/domain_fr2052a/SKILL.md
     trigger_patterns: ["fr2590", "sccl", "single-counterparty credit limits", "counterparty exposure"]
     priority: 10
+    # NOTE: FR 2590 reuses the FR 2052a domain skill until a dedicated
+    # FR 2590 domain skill is created in builtin/domain_fr2590/SKILL.md
 
   # Platform skills — shared across all reports
   - name: platform_snowflake
@@ -27,7 +28,7 @@ skills:
     trigger_patterns: ["axiomsl", "target extraction", "xml config"]
     priority: 20
 
-  # Client skills — shared across all reports
+  # Client skills
   - name: client_bhc_alpha
     path: builtin/client_bhc_alpha/SKILL.md
     trigger_patterns: ["bhc alpha", "client config"]

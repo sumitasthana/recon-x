@@ -89,8 +89,9 @@ def main():
 
     # Launch chat terminal if requested
     if args.chat:
-        from chat import start_chat
-        return start_chat(args)
+        from chat.repl import run_chat_terminal
+        config = ReconConfig(report_type=args.report_type, report_date=args.date)
+        return run_chat_terminal(config)
 
     # Initialize config
     config = ReconConfig(
