@@ -94,12 +94,12 @@ export function useChatApi() {
                       next[next.length - 1] = last;
                       return next;
                     });
-                  } else if (data.content !== undefined) {
-                    // token event — replace full content
+                  } else if (data.token !== undefined) {
+                    // token event — append incremental token
                     setMessages((prev) => {
                       const next = [...prev];
                       const last = { ...next[next.length - 1] };
-                      last.content = data.content;
+                      last.content = (last.content || '') + data.token;
                       next[next.length - 1] = last;
                       return next;
                     });

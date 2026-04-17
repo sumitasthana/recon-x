@@ -1,138 +1,84 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600&family=DM+Mono:wght@400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
+/* ── Scrollbar (Kratos light) ──────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
 
-::-webkit-scrollbar-track {
-  background: #18181b;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #3f3f46;
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #52525b;
-}
-
-/* Base styles */
+/* ── Base ──────────────────────────────────────────────── */
 body {
-  @apply bg-surface text-zinc-100 antialiased;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 13px;
+  color: #1f2937;
+  background: #f9fafb;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Keyframe animations */
+/* ── Keyframes ─────────────────────────────────────────── */
 @keyframes rx-pulse {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 0.25;
-  }
-  50% {
-    transform: scale(2);
-    opacity: 0;
-  }
+  0%, 100% { transform: scale(1); opacity: 0.25; }
+  50% { transform: scale(2); opacity: 0; }
 }
-
 @keyframes rx-dot {
-  0%, 80%, 100% {
-    opacity: 0.15;
-    transform: scale(0.7);
-  }
-  40% {
-    opacity: 1;
-    transform: scale(1.1);
-  }
+  0%, 80%, 100% { opacity: 0.15; transform: scale(0.7); }
+  40% { opacity: 1; transform: scale(1.1); }
 }
-
 @keyframes rx-fadein {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
-
-@keyframes rx-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes rx-check-draw {
-  from {
-    stroke-dashoffset: 20;
-  }
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
+@keyframes rx-spin { to { transform: rotate(360deg); } }
 @keyframes rx-breathe {
-  0%, 100% {
-    opacity: 0.3;
-  }
-  50% {
-    opacity: 0.6;
-  }
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.6; }
 }
-
 @keyframes rx-cursor-blink {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0;
-  }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 
-@keyframes rx-complete-flash {
-  0% {
-    border-color: #22c55e;
-    box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.2);
-  }
-  100% {
-    border-color: #27272a;
-    box-shadow: none;
-  }
-}
-
-/* Component utility classes */
+/* ── Component utilities ───────────────────────────────── */
 @layer components {
+  /* Cards */
   .card {
-    @apply bg-surface-card border border-surface-border rounded-lg p-4;
+    @apply bg-white border border-g-200 rounded-[10px] shadow-card;
   }
 
-  .badge {
-    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-medium;
-  }
+  /* Badges */
+  .bdg { @apply inline-flex items-center text-[10px] font-medium px-2.5 py-0.5 rounded-full whitespace-nowrap; }
+  .bdg-green { @apply bdg bg-status-green-light text-status-green; }
+  .bdg-amber { @apply bdg bg-status-amber-light text-status-amber; }
+  .bdg-red { @apply bdg bg-status-red-light text-status-red; }
+  .bdg-blue { @apply bdg bg-status-blue-light text-status-blue; }
+  .bdg-purple { @apply bdg bg-status-purple-light text-status-purple; }
+  .bdg-gray { @apply bdg bg-g-100 text-g-500; }
 
-  .badge-error {
-    @apply badge bg-red-500/10 text-red-400 border border-red-500/20;
-  }
+  /* Tags */
+  .tag { @apply text-[10px] px-2 py-0.5 rounded-md font-normal; }
+  .tag-reg { @apply tag bg-status-blue-light text-status-blue; }
+  .tag-grc { @apply tag bg-status-teal-light text-status-teal; }
+  .tag-proc { @apply tag bg-status-green-light text-status-green; }
 
-  .badge-warn {
-    @apply badge bg-amber-500/10 text-amber-400 border border-amber-500/20;
-  }
+  /* Accent bars */
+  .accent-bar { @apply w-[3px] self-stretch rounded-full flex-shrink-0; }
+  .accent-green { @apply accent-bar bg-status-green; }
+  .accent-amber { @apply accent-bar bg-status-amber; }
+  .accent-red { @apply accent-bar bg-status-red; }
+  .accent-blue { @apply accent-bar bg-status-blue; }
+  .accent-purple { @apply accent-bar bg-status-purple; }
+  .accent-gray { @apply accent-bar bg-g-300; }
 
-  .badge-info {
-    @apply badge bg-blue-500/10 text-blue-400 border border-blue-500/20;
-  }
-
-  /* Z-index layering for floating chat */
-  .z-90 {
-    z-index: 90;
-  }
-
-  .z-100 {
-    z-index: 100;
-  }
+  /* z-index layering */
+  .z-90 { z-index: 90; }
+  .z-100 { z-index: 100; }
+  .z-200 { z-index: 200; }
 }

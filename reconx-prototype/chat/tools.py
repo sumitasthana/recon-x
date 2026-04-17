@@ -2,6 +2,7 @@
 
 import json
 import os
+import glob as globmod
 import duckdb
 from langchain_core.tools import tool
 
@@ -9,11 +10,15 @@ from core.config import ReconConfig
 from core.graph import build_graph
 from core.state import ReconState
 from skills.builtin.platform_snowflake.scripts.data_scaffold import ensure_database
+from chat.rag import get_retriever
 
 
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
+
+OUTPUT_DIR = os.path.join("data", "output")
+
 
 def _get_config(report_type: str = "fr2052a", date: str = "2026-04-04") -> ReconConfig:
     return ReconConfig(report_type=report_type, report_date=date)
@@ -29,15 +34,42 @@ def _serialize_value(val):
 
 
 def _report_path(report_type: str, date: str) -> str:
-    return os.path.join("data", "output", f"break_report_{report_type}_{date}.json")
+    return os.path.join(OUTPUT_DIR, f"break_report_{report_type}_{date}.json")
 
 
-def _load_report(report_type: str, date: str) -> dict | None:
-    path = _report_path(report_type, date)
-    if not os.path.exists(path):
+def _find_latest_report(report_type: str) -> str | None:
+    """Find the most recent break report file for a report type."""
+    pattern = os.path.join(OUTPUT_DIR, f"break_report_{report_type}_*.json")
+    files = globmod.glob(pattern)
+    if not files:
         return None
-    with open(path) as f:
-        return json.load(f)
+    return max(files, key=os.path.getmtime)
+
+
+def _load_report(report_type: str, date: str) -> tuple[dict | None, str]:
+    """Load a break report by type+date, falling back to the latest.
+
+    Returns (data, actual_date) so callers can tell the user which date
+    was loaded when the fallback kicks in.
+    """
+    # Try exact match first
+    path = _report_path(report_type, date)
+    if os.path.exists(path):
+        with open(path) as f:
+            return json.load(f), date
+
+    # Fall back to the latest report for this type
+    latest = _find_latest_report(report_type)
+    if latest:
+        # Extract date from filename: break_report_fr2052a_2026-04-04.json
+        basename = os.path.basename(latest)
+        # Remove prefix "break_report_{type}_" and suffix ".json"
+        prefix = f"break_report_{report_type}_"
+        actual_date = basename.replace(prefix, "").replace(".json", "")
+        with open(latest) as f:
+            return json.load(f), actual_date
+
+    return None, date
 
 
 # ---------------------------------------------------------------------------
@@ -162,35 +194,40 @@ def query_database(sql: str) -> str:
 
 
 @tool
-def inspect_break_report(report_type: str, date: str) -> str:
-    """Load a previously saved break report from disk for the given report_type and date.
+def inspect_break_report(report_type: str, date: str = "latest") -> str:
+    """Load a previously saved break report from disk for the given report_type.
+    If date is 'latest' or the exact date is not found, automatically loads
+    the most recent available report.
     Returns the full BreakReport JSON, or guidance to run_reconciliation if not found.
     report_type: one of 'fr2052a', 'fr2590'
-    date: ISO date string e.g. '2026-04-04'
+    date: ISO date string e.g. '2026-04-04', or 'latest' for most recent
     """
-    data = _load_report(report_type, date)
+    data, actual_date = _load_report(report_type, date)
     if data is None:
-        return (f"No saved report found for {report_type} on {date}. "
-                f"Use run_reconciliation('{report_type}', '{date}') to generate one.")
-    return json.dumps(data, indent=2)
+        return (f"No saved report found for {report_type}. "
+                f"Use run_reconciliation('{report_type}', '<date>') to generate one.")
+    header = f"Report loaded: {report_type} — {actual_date}\n"
+    return header + json.dumps(data, indent=2)
 
 
 @tool
-def explain_break(break_id: str, report_type: str, date: str) -> str:
+def explain_break(break_id: str, report_type: str, date: str = "latest") -> str:
     """Load a specific break by break_id from a saved report and return a detailed
     human-readable explanation including severity, table, impact, root cause, and action.
+    If date is 'latest' or not found, loads the most recent report.
     break_id: e.g. 'BRK-001', 'BRK-004'
     report_type: one of 'fr2052a', 'fr2590'
-    date: ISO date string e.g. '2026-04-04'
+    date: ISO date string e.g. '2026-04-04', or 'latest'
     """
-    data = _load_report(report_type, date)
+    data, actual_date = _load_report(report_type, date)
     if data is None:
-        return (f"No saved report found for {report_type} on {date}. "
+        return (f"No saved report found for {report_type}. "
                 f"Run a reconciliation first.")
 
     for b in data.get("breaks", []):
         if b["break_id"].upper() == break_id.upper():
             lines = [
+                f"Report: {report_type} — {actual_date}",
                 f"Break: {b['break_id']} — {b['category']}",
                 f"Severity: {b['severity']}",
                 f"Table: {b.get('table_assignment') or 'N/A'}",
@@ -207,20 +244,20 @@ def explain_break(break_id: str, report_type: str, date: str) -> str:
             return "\n".join(lines)
 
     available = [b["break_id"] for b in data.get("breaks", [])]
-    return f"Break '{break_id}' not found. Available breaks: {', '.join(available)}"
+    return f"Break '{break_id}' not found in {report_type} ({actual_date}). Available breaks: {', '.join(available)}"
 
 
 @tool
-def get_recon_summary(report_type: str, date: str) -> str:
+def get_recon_summary(report_type: str, date: str = "latest") -> str:
     """Return a concise summary for a completed reconciliation run:
     recon_score, total breaks by severity, method used.
-    Loads from saved report on disk; suggests run_reconciliation if not found.
+    If date is 'latest' or not found, loads the most recent report.
     report_type: one of 'fr2052a', 'fr2590'
-    date: ISO date string e.g. '2026-04-04'
+    date: ISO date string e.g. '2026-04-04', or 'latest'
     """
-    data = _load_report(report_type, date)
+    data, actual_date = _load_report(report_type, date)
     if data is None:
-        return (f"No saved report found for {report_type} on {date}. "
+        return (f"No saved report found for {report_type}. "
                 f"Use run_reconciliation to generate one.")
 
     breaks = data.get("breaks", [])
@@ -232,10 +269,63 @@ def get_recon_summary(report_type: str, date: str) -> str:
     severity_str = ", ".join(f"{k}: {v}" for k, v in sorted(severity_counts.items()))
 
     return (
-        f"Report: {report_type.upper()} — {date}\n"
+        f"Report: {report_type.upper()} — {actual_date}\n"
         f"Recon Score: {data.get('recon_score', 'N/A')}/100\n"
         f"Total Breaks: {data.get('total_breaks', 0)}\n"
         f"By Severity: {severity_str or 'None'}\n"
         f"Method: {data.get('method', 'N/A')}\n"
         f"Summary: {data.get('summary', 'N/A')}"
     )
+
+
+@tool
+def list_available_reports() -> str:
+    """List all saved reconciliation reports on disk, grouped by report type.
+    Call this FIRST before inspect_break_report or get_recon_summary to know
+    which reports exist and their dates. This avoids requesting reports that
+    don't exist.
+    """
+    report_types = ["fr2052a", "fr2590"]
+    lines = []
+    for rt in report_types:
+        pattern = os.path.join(OUTPUT_DIR, f"break_report_{rt}_*.json")
+        files = sorted(globmod.glob(pattern))
+        if files:
+            dates = []
+            for f in files:
+                basename = os.path.basename(f)
+                prefix = f"break_report_{rt}_"
+                d = basename.replace(prefix, "").replace(".json", "")
+                dates.append(d)
+            lines.append(f"{rt.upper()}: {len(files)} reports — {dates[0]} to {dates[-1]}")
+        else:
+            lines.append(f"{rt.upper()}: no reports available")
+    return "\n".join(lines)
+
+
+@tool
+def search_regulatory_docs(query: str) -> str:
+    """Search the regulatory knowledge base for FR 2052a / FR 2590 domain
+    knowledge, break taxonomies, validation rules, HQLA classification,
+    FX tolerance thresholds, table routing rules, and platform procedures.
+
+    Use this tool when the user asks about regulatory definitions, break
+    categories, scoring formulas, or platform-specific procedures that are
+    not in the current conversation context.
+
+    query: natural-language search query, e.g. 'HQLA classification rules'
+    """
+    try:
+        retriever = get_retriever(k=4)
+        docs = retriever.invoke(query)
+        if not docs:
+            return "No relevant regulatory documents found for that query."
+
+        sections = []
+        for i, doc in enumerate(docs, 1):
+            source = doc.metadata.get("source", "unknown")
+            sections.append(f"--- [{i}] {source} ---\n{doc.page_content}")
+
+        return "\n\n".join(sections)
+    except Exception as e:
+        return f"Error searching regulatory docs: {e}"

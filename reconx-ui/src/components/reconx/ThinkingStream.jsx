@@ -1,8 +1,8 @@
 import React, { useRef, useEffect } from 'react';
 
 const SKILL_STYLES = {
-  Domain: { color: '#185FA5', bg: '#E6F1FB', icon: '\u2696' },
-  Platform: { color: '#0F6E56', bg: '#E1F5EE', icon: '\u2699' },
+  Domain: { color: '#185FA5', bg: '#E6F1FB' },
+  Platform: { color: '#0F6E56', bg: '#E1F5EE' },
   Client: { color: '#854F0B', bg: '#FAEEDA', icon: '\u2692' },
 };
 
@@ -46,7 +46,7 @@ const ThinkingStream = ({ messages, elapsed, skills = [] }) => {
 
               <span
                 className={`text-[13px] font-mono ${
-                  isLatest ? 'text-zinc-100' : 'text-zinc-300'
+                  isLatest ? 'text-g-800' : 'text-g-500'
                 }`}
               >
                 {msg.text}

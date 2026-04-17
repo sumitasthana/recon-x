@@ -44,7 +44,7 @@ const BreakCard = ({ brk, animDelay }) => {
             {/* Severity badge */}
             <span className={getSeverityBadgeClass()}>{brk.severity}</span>
             {/* Area label */}
-            <span className="text-[13px] text-zinc-500">{brk.area}</span>
+            <span className="text-[13px] text-g-400">{brk.area}</span>
             {/* Invisible badge for BRK-004 */}
             {brk.id === 'BRK-004' && (
               <span
@@ -58,22 +58,22 @@ const BreakCard = ({ brk, animDelay }) => {
 
           {/* Impact and positions */}
           <div className="text-right shrink-0 ml-4">
-            <div className="text-[16px] font-medium text-zinc-100">
+            <div className="text-[16px] font-medium text-g-900">
               {brk.impact}
             </div>
-            <div className="text-[12px] text-zinc-500">
+            <div className="text-[12px] text-g-400">
               {formatPositions(brk.positions)}
             </div>
           </div>
         </div>
 
         {/* Row 2: Title */}
-        <div className="mt-2 text-[15px] font-medium text-zinc-100">
+        <div className="mt-2 text-[15px] font-medium text-g-900">
           {brk.title}
         </div>
 
         {/* Row 3: Headline */}
-        <div className="mt-1 text-[13px] text-zinc-500 leading-relaxed">
+        <div className="mt-1 text-[13px] text-g-400 leading-relaxed">
           {brk.headline}
         </div>
 
@@ -108,7 +108,7 @@ const BreakCard = ({ brk, animDelay }) => {
             }}
           >
             {/* Detail paragraph */}
-            <p className="text-[13px] text-zinc-500 leading-relaxed">
+            <p className="text-[13px] text-g-400 leading-relaxed">
               {brk.detail}
             </p>
 
@@ -117,7 +117,7 @@ const BreakCard = ({ brk, animDelay }) => {
               {/* Root cause card */}
               <div className="bg-surface rounded-lg px-3.5 py-3">
                 <div className="text-[11px] text-zinc-600 mb-1">Root cause</div>
-                <div className="text-[13px] text-zinc-100">{brk.root}</div>
+                <div className="text-[13px] text-g-900">{brk.root}</div>
               </div>
 
               {/* Detection method card */}
@@ -125,7 +125,7 @@ const BreakCard = ({ brk, animDelay }) => {
                 <div className="text-[11px] text-zinc-600 mb-1">
                   Detection method
                 </div>
-                <div className="text-[13px] text-zinc-100">
+                <div className="text-[13px] text-g-900">
                   {getDetectionMethod()}
                 </div>
               </div>

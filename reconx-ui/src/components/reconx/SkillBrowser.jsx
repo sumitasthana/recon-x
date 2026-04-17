@@ -46,7 +46,7 @@ function renderMarkdown(md) {
       elements.push(
         <pre
           key={key++}
-          className="my-3 rounded-lg px-4 py-3 text-[12px] font-mono text-zinc-300 overflow-x-auto leading-relaxed"
+          className="my-3 rounded-lg px-4 py-3 text-[12px] font-mono text-g-700 overflow-x-auto leading-relaxed"
           style={{ backgroundColor: '#0d1117', border: '1px solid #1c2533' }}
         >
           {codeLines.join('\n')}
@@ -73,7 +73,7 @@ function renderMarkdown(md) {
               <thead>
                 <tr style={{ backgroundColor: '#111820' }}>
                   {headers.map((h, j) => (
-                    <th key={j} className="text-left px-3 py-2 text-zinc-400 font-medium border-b border-[#1c2533]">
+                    <th key={j} className="text-left px-3 py-2 text-g-500 font-medium border-b border-[#1c2533]">
                       {h}
                     </th>
                   ))}
@@ -83,7 +83,7 @@ function renderMarkdown(md) {
                 {rows.map((row, ri) => (
                   <tr key={ri} className="border-b border-[#1c2533] last:border-0">
                     {row.map((cell, ci) => (
-                      <td key={ci} className="px-3 py-1.5 text-zinc-400">{inlineFormat(cell)}</td>
+                      <td key={ci} className="px-3 py-1.5 text-g-500">{inlineFormat(cell)}</td>
                     ))}
                   </tr>
                 ))}
@@ -101,11 +101,11 @@ function renderMarkdown(md) {
       i++; continue;
     }
     if (line.startsWith('## ')) {
-      elements.push(<h2 key={key++} className="text-[16px] font-semibold text-zinc-100 mt-6 mb-2">{inlineFormat(line.slice(3))}</h2>);
+      elements.push(<h2 key={key++} className="text-[16px] font-semibold text-g-900 mt-6 mb-2">{inlineFormat(line.slice(3))}</h2>);
       i++; continue;
     }
     if (line.startsWith('# ')) {
-      elements.push(<h1 key={key++} className="text-[18px] font-bold text-zinc-100 mt-6 mb-3">{inlineFormat(line.slice(2))}</h1>);
+      elements.push(<h1 key={key++} className="text-[18px] font-bold text-g-900 mt-6 mb-3">{inlineFormat(line.slice(2))}</h1>);
       i++; continue;
     }
 
@@ -127,8 +127,8 @@ function renderMarkdown(md) {
     if (/^[-*] /.test(line.trimStart())) {
       const indent = line.length - line.trimStart().length;
       elements.push(
-        <div key={key++} className="flex gap-2 text-[13px] text-zinc-400 leading-relaxed" style={{ paddingLeft: indent * 4 + 8 }}>
-          <span className="text-zinc-600 mt-0.5 shrink-0">-</span>
+        <div key={key++} className="flex gap-2 text-[13px] text-g-500 leading-relaxed" style={{ paddingLeft: indent * 4 + 8 }}>
+          <span className="text-g-500 mt-0.5 shrink-0">-</span>
           <span>{inlineFormat(line.trimStart().slice(2))}</span>
         </div>
       );
@@ -140,8 +140,8 @@ function renderMarkdown(md) {
       const match = line.trimStart().match(/^(\d+)\. (.*)/);
       if (match) {
         elements.push(
-          <div key={key++} className="flex gap-2 text-[13px] text-zinc-400 leading-relaxed pl-2">
-            <span className="text-zinc-500 shrink-0 w-4 text-right">{match[1]}.</span>
+          <div key={key++} className="flex gap-2 text-[13px] text-g-500 leading-relaxed pl-2">
+            <span className="text-g-400 shrink-0 w-4 text-right">{match[1]}.</span>
             <span>{inlineFormat(match[2])}</span>
           </div>
         );
@@ -157,7 +157,7 @@ function renderMarkdown(md) {
 
     // Regular paragraph
     elements.push(
-      <p key={key++} className="text-[13px] text-zinc-400 leading-relaxed">
+      <p key={key++} className="text-[13px] text-g-500 leading-relaxed">
         {inlineFormat(line)}
       </p>
     );
@@ -201,7 +201,7 @@ function inlineFormat(text) {
       parts.push(<strong key={k++} className="text-zinc-200 font-medium">{earliest[1]}</strong>);
     } else if (type === 'code') {
       parts.push(
-        <code key={k++} className="px-1.5 py-0.5 rounded text-[11px] font-mono text-zinc-300" style={{ backgroundColor: '#1a1a2e' }}>
+        <code key={k++} className="px-1.5 py-0.5 rounded text-[11px] font-mono text-g-700" style={{ backgroundColor: '#1a1a2e' }}>
           {earliest[1]}
         </code>
       );
@@ -227,11 +227,11 @@ function SkillListItem({ skill, isSelected, onClick }) {
     >
       <div className="flex items-center gap-2 mb-1">
         <TierBadge tier={skill.tier} />
-        <span className="text-[11px] text-zinc-600">
+        <span className="text-[11px] text-g-500">
           {(skill.size_bytes / 1024).toFixed(1)}KB
         </span>
       </div>
-      <div className="text-[13px] font-mono text-zinc-300 truncate">
+      <div className="text-[13px] font-mono text-g-700 truncate">
         {skill.id}
       </div>
     </button>
@@ -316,7 +316,7 @@ export default function SkillBrowser() {
 
         {/* ── Left panel: skill list ── */}
         <div className="w-[240px] shrink-0 space-y-1">
-          <div className="text-[12px] text-zinc-500 px-3 mb-2">
+          <div className="text-[12px] text-g-400 px-3 mb-2">
             {skills.length} registered skills
           </div>
           {skills.map((s) => (
@@ -336,14 +336,14 @@ export default function SkillBrowser() {
           {skill && (
             <div className="flex items-center justify-between px-5 py-3 border-b border-surface-border shrink-0">
               <div className="flex items-center gap-3 min-w-0">
-                <span className="text-[16px] font-mono text-zinc-100 truncate">
+                <span className="text-[16px] font-mono text-g-900 truncate">
                   {skill.id}
                 </span>
                 <TierBadge tier={skill.tier} />
-                <span className="text-[11px] text-zinc-500 shrink-0">
+                <span className="text-[11px] text-g-400 shrink-0">
                   {(skill.size_bytes / 1024).toFixed(1)}KB
                 </span>
-                <span className="text-[11px] text-zinc-600 shrink-0">
+                <span className="text-[11px] text-g-500 shrink-0">
                   Modified {new Date(skill.last_modified).toLocaleDateString()}
                 </span>
               </div>
@@ -353,7 +353,7 @@ export default function SkillBrowser() {
                 {!editMode ? (
                   <button
                     onClick={handleEdit}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] text-zinc-400 hover:text-zinc-200 border border-surface-border hover:border-zinc-600 transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] text-g-500 hover:text-zinc-200 border border-surface-border hover:border-zinc-600 transition-colors"
                   >
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
@@ -365,7 +365,7 @@ export default function SkillBrowser() {
                   <>
                     <button
                       onClick={handleCancel}
-                      className="px-3 py-1.5 rounded-lg text-[12px] text-zinc-400 border border-zinc-700 hover:border-zinc-500 transition-colors"
+                      className="px-3 py-1.5 rounded-lg text-[12px] text-g-500 border border-zinc-700 hover:border-zinc-500 transition-colors"
                     >
                       Cancel
                     </button>
@@ -402,13 +402,13 @@ export default function SkillBrowser() {
                 ref={textareaRef}
                 value={editContent}
                 onChange={(e) => setEditContent(e.target.value)}
-                className="w-full h-full min-h-[500px] px-6 py-5 bg-transparent text-zinc-100 text-[13px] font-mono leading-relaxed resize-none focus:outline-none"
+                className="w-full h-full min-h-[500px] px-6 py-5 bg-transparent text-g-900 text-[13px] font-mono leading-relaxed resize-none focus:outline-none"
                 spellCheck={false}
               />
             )}
 
             {!contentLoading && !skill && selectedId && (
-              <div className="flex items-center justify-center h-32 text-[13px] text-zinc-600">
+              <div className="flex items-center justify-center h-32 text-[13px] text-g-500">
                 Skill not found
               </div>
             )}

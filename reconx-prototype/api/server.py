@@ -1,5 +1,6 @@
 """FastAPI server for ReconX — serves report metadata and runs reconciliations."""
 
+import asyncio
 import json
 import os
 import glob
@@ -11,6 +12,7 @@ from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional, List
 from sse_starlette.sse import EventSourceResponse
@@ -24,14 +26,16 @@ from skills.builtin.platform_snowflake.scripts.data_scaffold import ensure_datab
 from reports.fr2590.data_scaffold import ensure_fr2590_tables, create_axiomsl_test_data
 
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
-from langgraph.checkpoint.memory import MemorySaver
-from chat.agent import build_chat_agent
+from chat.agent import build_chat_agent, create_checkpointer_context
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_logging("data/output/reconx_api.log")
-    yield
+    # Initialise durable SQLite checkpointer (survives restarts)
+    async with create_checkpointer_context() as checkpointer:
+        app.state.checkpointer = checkpointer
+        yield
 
 
 app = FastAPI(title="ReconX API", version="1.0.0", lifespan=lifespan)
@@ -42,6 +46,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ---------- Concurrency / rate limiting ----------
+# Limits concurrent chat requests to prevent Bedrock throttling and OOM.
+# Additional requests get HTTP 429 instead of queueing forever.
+
+MAX_CONCURRENT_CHAT = int(os.environ.get("RECONX_MAX_CONCURRENT_CHAT", "5"))
+_chat_semaphore = asyncio.Semaphore(MAX_CONCURRENT_CHAT)
+
+# Maximum wall-clock seconds for a single chat turn (LLM + tools combined).
+CHAT_TIMEOUT_SECONDS = int(os.environ.get("RECONX_CHAT_TIMEOUT", "300"))
 
 
 # ---------- Request / Response models ----------
@@ -67,17 +82,21 @@ class ChatRequest(BaseModel):
     history: List[ChatMessage] = []
 
 
-# ---------- Chat Agent (lazy init) ----------
+# ---------- Chat Agent ----------
+# All threads share a single agent instance backed by the durable SQLite
+# checkpointer.  Thread isolation is handled by the thread_id in the config
+# passed to each invocation — no per-thread agent cache needed.
 
-_chat_agents = {}  # thread_id -> agent
+_chat_agent = None
 
 
-def _get_chat_agent(thread_id: str = "default"):
-    """Get or create a chat agent for a thread."""
-    if thread_id not in _chat_agents:
+def _get_chat_agent():
+    """Get (or lazily create) the shared chat agent."""
+    global _chat_agent
+    if _chat_agent is None:
         config = ReconConfig()
-        _chat_agents[thread_id] = build_chat_agent(config)
-    return _chat_agents[thread_id]
+        _chat_agent = build_chat_agent(config, checkpointer=app.state.checkpointer)
+    return _chat_agent
 
 
 # ---------- Routes ----------
@@ -216,71 +235,137 @@ async def run_recon(request: ReconRequest):
 async def chat(request: ChatRequest):
     """Stream a chat response from the ReconX agent via SSE.
 
+    Uses astream_events(version="v2") for true token-by-token streaming.
+
+    Resilience:
+    - Concurrency-limited via asyncio.Semaphore (HTTP 429 when full)
+    - Wall-clock timeout (CHAT_TIMEOUT_SECONDS) prevents runaway requests
+
     Events emitted:
     - {"event": "tool_start", "data": {"tool": "...", "input": "..."}}
     - {"event": "tool_result", "data": {"tool": "...", "output": "..."}}
-    - {"event": "token", "data": {"content": "..."}}
+    - {"event": "token", "data": {"token": "..."}}   # incremental token
     - {"event": "done", "data": {}}
     - {"event": "error", "data": {"message": "..."}}
     """
-    agent = _get_chat_agent(request.thread_id)
+    # ── Concurrency gate ──
+    if _chat_semaphore.locked():
+        return JSONResponse(
+            status_code=429,
+            content={"message": "Too many concurrent chat requests. Please retry shortly."},
+        )
+
+    agent = _get_chat_agent()
     thread_config = {"configurable": {"thread_id": request.thread_id}}
 
     async def event_stream():
         log = structlog.get_logger().bind(run="chat", thread=request.thread_id)
+        token_count = 0
+        # Track active delegation calls by run_id — only emit supervisor
+        # tokens when no delegations are in flight.
+        active_delegations = set()
 
-        try:
-            # Stream the agent execution
-            full_response = ""
-            for chunk in agent.stream(
-                {"messages": [HumanMessage(content=request.message)]},
-                config=thread_config,
-                stream_mode="updates",
-            ):
-                for node_name, node_output in chunk.items():
-                    messages = node_output.get("messages", [])
-                    for msg in messages:
-                        if isinstance(msg, AIMessage):
-                            # Tool calls the agent is making
-                            if msg.tool_calls:
-                                for tc in msg.tool_calls:
-                                    yield {
-                                        "event": "tool_start",
-                                        "data": json.dumps({
-                                            "tool": tc["name"],
-                                            "input": json.dumps(tc["args"])[:200],
-                                        }),
-                                    }
-                            # Text response from the agent
-                            if msg.content and not msg.tool_calls:
-                                full_response = msg.content
-                                yield {
-                                    "event": "token",
-                                    "data": json.dumps({"content": msg.content}),
-                                }
+        async with _chat_semaphore:
+            try:
+                deadline = time.monotonic() + CHAT_TIMEOUT_SECONDS
 
-                        elif isinstance(msg, ToolMessage):
-                            # Truncate long tool outputs for the SSE stream
-                            output = msg.content
+                async for event in agent.astream_events(
+                    {"messages": [HumanMessage(content=request.message)]},
+                    config=thread_config,
+                    version="v2",
+                ):
+                    if time.monotonic() > deadline:
+                        raise asyncio.TimeoutError()
+
+                    kind = event["event"]
+
+                    # ── Delegation start ──
+                    if kind == "on_tool_start":
+                        tool_name = event.get("name", "")
+                        if tool_name.startswith("ask_"):
+                            run_id = event.get("run_id", "")
+                            active_delegations.add(run_id)
+                            tool_input = json.dumps(
+                                event["data"].get("input", {})
+                            )[:200]
+                            yield {
+                                "event": "tool_start",
+                                "data": json.dumps({
+                                    "tool": tool_name,
+                                    "input": tool_input,
+                                }),
+                            }
+                        continue
+
+                    # ── Delegation end ──
+                    if kind == "on_tool_end":
+                        tool_name = event.get("name", "")
+                        if tool_name.startswith("ask_"):
+                            run_id = event.get("run_id", "")
+                            active_delegations.discard(run_id)
+                            raw = event["data"].get("output", "")
+                            if hasattr(raw, "content"):
+                                output = raw.content
+                            else:
+                                output = str(raw)
+                            if isinstance(output, list):
+                                # Bedrock content block format
+                                output = "".join(
+                                    b.get("text", "") for b in output
+                                    if isinstance(b, dict) and b.get("type") == "text"
+                                ) or str(output)
                             if len(output) > 2000:
                                 output = output[:2000] + "\n... (truncated)"
                             yield {
                                 "event": "tool_result",
                                 "data": json.dumps({
-                                    "tool": msg.name,
+                                    "tool": tool_name,
                                     "output": output,
                                 }),
                             }
+                        continue
 
-            yield {"event": "done", "data": json.dumps({})}
-            log.info("chat.complete", response_len=len(full_response))
+                    # ── Incremental tokens from the supervisor ──
+                    # Suppress when a delegation is in flight so specialist
+                    # model tokens don't leak to the UI.
+                    if kind == "on_chat_model_stream" and not active_delegations:
+                        chunk = event["data"].get("chunk")
+                        if chunk and chunk.content:
+                            # Bedrock returns content as a list of blocks
+                            # or a plain string depending on model version.
+                            text = ""
+                            if isinstance(chunk.content, str):
+                                text = chunk.content
+                            elif isinstance(chunk.content, list):
+                                for block in chunk.content:
+                                    if isinstance(block, dict) and block.get("type") == "text":
+                                        text += block.get("text", "")
+                            if text:
+                                token_count += 1
+                                yield {
+                                    "event": "token",
+                                    "data": json.dumps({"token": text}),
+                                }
 
-        except Exception as e:
-            log.exception("chat.error", error=str(e))
-            yield {
-                "event": "error",
-                "data": json.dumps({"message": str(e)}),
-            }
+                yield {"event": "done", "data": json.dumps({})}
+                log.info("chat.complete", tokens=token_count)
+
+            except asyncio.TimeoutError:
+                log.warning("chat.timeout", timeout=CHAT_TIMEOUT_SECONDS)
+                yield {
+                    "event": "error",
+                    "data": json.dumps({
+                        "message": f"Request timed out after {CHAT_TIMEOUT_SECONDS}s. "
+                                   "Try a simpler query or break your request into steps.",
+                    }),
+                }
+
+            except Exception as e:
+                log.exception("chat.error", error=str(e))
+                yield {
+                    "event": "error",
+                    "data": json.dumps({"message": str(e)}),
+                }
 
     return EventSourceResponse(event_stream())
 

@@ -1,89 +1,67 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useReports, useReportContext, useReportSteps, useReconRun } from './hooks/useReconApi';
+
+/* ── Existing components ── */
 import ReportSelector from './components/reconx/ReportSelector';
 import ReconContext from './components/reconx/ReconContext';
 import SkillShowcase from './components/reconx/SkillShowcase';
 import StepCard from './components/reconx/StepCard';
 import BreakReport from './components/reconx/BreakReport';
 import DataExplorer from './components/reconx/DataExplorer';
-import ChatPanel from './components/reconx/ChatPanel';
 import Observatory from './components/reconx/Observatory';
-import SkillBrowser from './components/reconx/SkillBrowser';
 import FloatingChat from './components/reconx/FloatingChat';
+
+/* ── Kratos-inspired components ── */
+import Briefing from './components/reconx/Briefing';
+import Actions from './components/reconx/Actions';
+import AuditLog from './components/reconx/AuditLog';
+import ApprovalQueue from './components/reconx/ApprovalQueue';
+import ReportGrid from './components/reconx/ReportGrid';
+import Platform from './components/reconx/Platform';
 
 const STEP_DURATION = 6500;
 
-/* ── Sidebar nav items ───────────────────────────────────── */
+/* ── Navigation constants ──────────────────────────────── */
+
+const REGULATIONS = [
+  { id: 'fr2052a', label: 'FR 2052a', dot: '#b45309' },
+  { id: 'fr2590', label: 'FR 2590 SCCL', dot: '#d1d5db' },
+];
+
 const NAV_ITEMS = [
-  {
-    id: 'chat',
-    label: 'Chat',
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-      </svg>
-    ),
-  },
-  {
-    id: 'observatory',
-    label: 'Observatory',
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 20V10" />
-        <path d="M18 20V4" />
-        <path d="M6 20v-4" />
-      </svg>
-    ),
-  },
-  {
-    id: 'recon',
-    label: 'Reconciliation',
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-      </svg>
-    ),
-  },
-  {
-    id: 'skills',
-    label: 'Skills',
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
-      </svg>
-    ),
-  },
-  {
-    id: 'data',
-    label: 'Source Data',
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <ellipse cx="12" cy="5" rx="9" ry="3" />
-        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
-        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
-      </svg>
-    ),
-  },
+  { id: 'observatory', label: 'Observatory' },
+  { id: 'recon', label: 'Reconciliation' },
+  { id: 'actions', label: 'Actions', badge: '3', badgeType: 'amber' },
+  { id: 'reports', label: 'Reports' },
+  { id: 'auditlog', label: 'Audit log' },
+  { id: 'approvals', label: 'Approval queue', badge: '1', badgeType: 'red' },
+];
+
+const NAV_BOTTOM = [
+  { id: 'data', label: 'Source Data' },
+  { id: 'platform', label: 'Platform workbench' },
 ];
 
 function App() {
-  const [activeTab, setActiveTab] = useState('chat');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [selectedReport, setSelectedReport] = useState(null);
-  const [reportDate, setReportDate] = useState('2026-04-04');
+  const [activeTab, setActiveTab] = useState('briefing');
+  const [activeRegulation, setActiveRegulation] = useState('fr2052a');
   const [floatingChatOpen, setFloatingChatOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [selectedReport, setSelectedReport] = useState(null);
+  const [reportDate, setReportDate] = useState('2026-04-04');
+
+  // Sync Reconciliation tab's report selector with global regulation
+  useEffect(() => {
+    setSelectedReport(activeRegulation);
+  }, [activeRegulation]);
 
   const { reports: availableReports, loading: reportsLoading } = useReports();
   const { context: reportContext } = useReportContext(selectedReport);
   const { steps: reportSteps } = useReportSteps(selectedReport);
 
   const {
-    startRun,
-    phase,
-    stepStatuses: sseStatuses,
-    report: apiReport,
-    error: apiError,
+    startRun, phase, stepStatuses: sseStatuses,
+    report: apiReport, error: apiError,
   } = useReconRun(reportSteps.length || 4);
 
   const [elapsed, setElapsed] = useState(0);
@@ -107,38 +85,23 @@ function App() {
     setCurrentStep(0);
     setElapsed(0);
     startRef.current = Date.now();
-    timerRef.current = setInterval(() => {
-      setElapsed(Date.now() - startRef.current);
-    }, 80);
+    timerRef.current = setInterval(() => setElapsed(Date.now() - startRef.current), 80);
   }, [selectedReport, reportDate, startRun]);
 
   useEffect(() => {
-    if (phase !== 'running') {
-      if (timerRef.current) clearInterval(timerRef.current);
-      return;
-    }
+    if (phase !== 'running') { if (timerRef.current) clearInterval(timerRef.current); return; }
     const stepIndex = Math.floor(elapsed / STEP_DURATION);
-    if (stepIndex >= reportSteps.length) {
-      clearInterval(timerRef.current);
-      setCurrentStep(-1);
-      return;
-    }
+    if (stepIndex >= reportSteps.length) { clearInterval(timerRef.current); setCurrentStep(-1); return; }
     if (stepIndex !== currentStep) setCurrentStep(stepIndex);
   }, [elapsed, phase, currentStep, reportSteps.length]);
 
   useEffect(() => {
     if (phase === 'done' && apiReport) {
-      setTimeout(() => {
-        reportRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 400);
+      setTimeout(() => reportRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 400);
     }
   }, [phase, apiReport]);
 
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, []);
+  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
 
   const stepElapsed = currentStep >= 0 ? elapsed - currentStep * STEP_DURATION : 0;
   const selectedReportInfo = availableReports.find((r) => r.id === selectedReport);
@@ -148,197 +111,159 @@ function App() {
   const getButtonContent = () => {
     if (!hasReport) return 'Select a report';
     if (phase === 'idle') return 'Start reconciliation';
-    if (isRunning) return 'Reconciling\u2026';
+    if (isRunning) return 'Reconciling…';
     if (phase === 'error') return 'Retry';
     return 'Run again';
   };
 
-  const sidebarW = sidebarCollapsed ? 64 : 220;
+  /* ── Render helpers ─────────────────────────────────── */
+
+  const NavBadge = ({ text, type }) => (
+    <span className="ml-auto text-[10px] font-medium px-1.5 py-px rounded-full"
+      style={{
+        background: type === 'red' ? '#fde8e8' : '#fef3cd',
+        color: type === 'red' ? '#b91c1c' : '#b45309',
+      }}>
+      {text}
+    </span>
+  );
+
+  const NavItem = ({ item, isActive, onClick }) => (
+    <button
+      onClick={onClick}
+      className="w-full flex items-center gap-2 py-[7px] px-2.5 rounded-md text-[13px] text-left transition-all"
+      style={{
+        background: isActive ? '#e8eef7' : 'transparent',
+        color: isActive ? '#0c1f3d' : '#4b5563',
+        fontWeight: isActive ? 500 : 400,
+      }}
+    >
+      {item.label}
+      {item.badge && <NavBadge text={item.badge} type={item.badgeType} />}
+    </button>
+  );
 
   return (
-    <div className="flex h-screen bg-surface overflow-hidden">
+    <div className="flex flex-col h-screen overflow-hidden">
 
-      {/* ========== LEFT SIDEBAR ========== */}
-      <aside
-        className="h-screen flex flex-col shrink-0 border-r border-surface-border transition-all duration-200"
-        style={{ width: sidebarW, backgroundColor: '#111113' }}
-      >
-        {/* Logo */}
-        <div
-          className="flex items-center gap-2.5 px-4 shrink-0"
-          style={{ height: 56 }}
+      {/* ════════ TOPBAR ════════ */}
+      <div className="h-[52px] flex items-center justify-between px-6 flex-shrink-0 z-200"
+        style={{ background: '#0c1f3d', borderBottom: '1px solid rgba(255,255,255,.06)' }}>
+        <div className="flex items-center gap-2">
+          <span className="text-[18px] font-medium text-white tracking-tight">
+            Recon<span style={{ color: '#e85d20' }}>X</span>
+          </span>
+        </div>
+        <div className="flex items-center gap-2.5">
+          <span className="text-[12px] text-white/40 font-light">Regulatory Reconciliation</span>
+          <div className="w-px h-3 bg-white/15" />
+          <span className="text-[11px] text-white/30 font-light">
+            {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+          </span>
+        </div>
+        <button
+          onClick={() => setFloatingChatOpen(!floatingChatOpen)}
+          className="flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[12px] font-medium text-white transition-all"
+          style={{
+            background: floatingChatOpen ? 'rgba(232,93,32,.25)' : 'rgba(255,255,255,.12)',
+            border: `1px solid ${floatingChatOpen ? '#e85d20' : 'rgba(255,255,255,.2)'}`,
+          }}
         >
-          <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-semibold text-[15px] shrink-0"
-            style={{
-              background: 'linear-gradient(135deg, #185FA5 0%, #0F6E56 100%)',
-            }}
-          >
-            Rx
-          </div>
-          {!sidebarCollapsed && (
-            <span className="text-[16px] font-semibold text-zinc-100 tracking-tight whitespace-nowrap">
-              ReconX
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
+            <path d="M12 2H2C1.45 2 1 2.45 1 3v7c0 .55.45 1 1 1h1v2l2.5-2H12c.55 0 1-.45 1-1V3c0-.55-.45-1-1-1z" fill="rgba(255,255,255,0.7)" />
+          </svg>
+          <span>ReconX</span>
+          {unreadCount > 0 && !floatingChatOpen && (
+            <span className="text-[10px] font-medium bg-accent-orange text-white px-1.5 py-px rounded-full min-w-[18px] text-center">
+              {unreadCount}
             </span>
           )}
-        </div>
+        </button>
+      </div>
 
-        {/* Divider */}
-        <div className="mx-3 border-t border-surface-border" />
+      <div className="flex flex-1 overflow-hidden">
 
-        {/* Nav items */}
-        <nav className="flex-1 px-2 py-3 space-y-0.5">
-          {NAV_ITEMS.map((item) => {
-            const isActive = activeTab === item.id;
-            return (
+        {/* ════════ SIDEBAR ════════ */}
+        <aside className="w-[220px] flex-shrink-0 bg-white border-r border-g-200 flex flex-col overflow-y-auto">
+
+          {/* Briefing link */}
+          <div className="p-3 pb-1">
+            <button
+              onClick={() => setActiveTab('briefing')}
+              className="w-full flex items-center gap-2 rounded-md px-2.5 py-2 mb-0.5 text-[13px] transition-all"
+              style={{
+                background: activeTab === 'briefing' ? '#e8eef7' : 'transparent',
+                color: activeTab === 'briefing' ? '#0c1f3d' : '#4b5563',
+                fontWeight: activeTab === 'briefing' ? 500 : 400,
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ flexShrink: 0 }}>
+                <path d="M1 2.5h11M1 5.5h8M1 8.5h9M1 11.5h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+              Daily briefing
+            </button>
+          </div>
+
+          <div className="mx-3 border-t border-g-100" />
+
+          {/* Regulation scope pills */}
+          <div className="px-3 py-2.5 flex gap-1.5">
+            {REGULATIONS.map((reg) => (
               <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id)}
-                className="w-full flex items-center gap-3 rounded-lg transition-colors relative group"
+                key={reg.id}
+                onClick={() => setActiveRegulation(reg.id)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-all flex-1 justify-center"
                 style={{
-                  padding: sidebarCollapsed ? '10px 0' : '10px 12px',
-                  justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
-                  backgroundColor: isActive ? '#1e1e22' : 'transparent',
-                  color: isActive ? '#e4e4e7' : '#71717a',
+                  background: activeRegulation === reg.id ? '#e8eef7' : 'transparent',
+                  border: `1px solid ${activeRegulation === reg.id ? '#0c1f3d' : '#e5e7eb'}`,
+                  color: activeRegulation === reg.id ? '#0c1f3d' : '#6b7280',
                 }}
               >
-                {/* Active indicator bar */}
-                {isActive && (
-                  <div
-                    className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-r"
-                    style={{ height: 20, backgroundColor: '#185FA5' }}
-                  />
-                )}
-                <span className="shrink-0" style={{ opacity: isActive ? 1 : 0.7 }}>
-                  {item.icon}
-                </span>
-                {!sidebarCollapsed && (
-                  <span className="text-[13px] font-medium truncate">
-                    {item.label}
-                  </span>
-                )}
-                {/* Tooltip when collapsed */}
-                {sidebarCollapsed && (
-                  <div className="absolute left-full ml-2 px-2 py-1 rounded bg-zinc-800 text-zinc-200 text-[12px] whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
-                    {item.label}
-                  </div>
-                )}
+                <div className="w-[7px] h-[7px] rounded-full flex-shrink-0" style={{ background: reg.dot }} />
+                {reg.label}
               </button>
-            );
-          })}
-        </nav>
-
-        {/* Bottom section */}
-        <div className="px-2 pb-3 space-y-1">
-          {/* Collapse toggle */}
-          <button
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="w-full flex items-center gap-3 rounded-lg px-3 py-2 text-zinc-600 hover:text-zinc-400 transition-colors"
-            style={{ justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}
-          >
-            <svg
-              width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"
-              style={{
-                transform: sidebarCollapsed ? 'rotate(180deg)' : 'none',
-                transition: 'transform 0.2s',
-              }}
-            >
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-              <path d="M9 3v18" />
-            </svg>
-            {!sidebarCollapsed && (
-              <span className="text-[12px]">Collapse</span>
-            )}
-          </button>
-
-          {/* Version */}
-          {!sidebarCollapsed && (
-            <div className="px-3 py-1.5 text-[11px] text-zinc-700">
-              ReconX v1.0 — LangGraph + Claude
-            </div>
-          )}
-        </div>
-      </aside>
-
-      {/* ========== MAIN CONTENT ========== */}
-      <main className="flex-1 min-w-0 overflow-hidden">
-
-        {/* ── Top bar ─────────────────────────────────── */}
-        <div
-          className="flex items-center justify-between px-6 border-b border-surface-border shrink-0"
-          style={{ height: 56, backgroundColor: '#111113' }}
-        >
-          <div className="flex items-center gap-2">
-            <span className="text-[14px] font-medium text-zinc-100">
-              {NAV_ITEMS.find((n) => n.id === activeTab)?.label}
-            </span>
-            <span className="text-[12px] text-zinc-600">
-              {activeTab === 'chat' && '— Ask anything about reconciliations'}
-              {activeTab === 'observatory' && '— Daily run health and score trends'}
-              {activeTab === 'recon' && '— Run and monitor reconciliation pipelines'}
-              {activeTab === 'skills' && '— Browse and edit LLM skill context files'}
-              {activeTab === 'data' && '— Explore source database tables'}
-            </span>
+            ))}
           </div>
 
-          {/* FloatingChat trigger button */}
-          <button
-            onClick={() => setFloatingChatOpen(!floatingChatOpen)}
-            className="relative flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[12px] font-medium text-white transition-all"
-            style={{
-              backgroundColor: floatingChatOpen ? 'rgba(24,95,165,0.25)' : 'rgba(255,255,255,0.1)',
-              border: `1px solid ${floatingChatOpen ? '#185FA5' : 'rgba(255,255,255,0.15)'}`
-            }}
-          >
-            <div
-              className="w-[14px] h-[14px] rounded flex items-center justify-center text-[9px] font-semibold"
-              style={{
-                background: 'linear-gradient(135deg, #185FA5 0%, #0F6E56 100%)',
-              }}
-            >
-              Rx
-            </div>
-            <span>ReconX</span>
-            {unreadCount > 0 && !floatingChatOpen && (
-              <div
-                className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
-                style={{ backgroundColor: '#f59e0b' }}
-              >
-                {unreadCount}
-              </div>
-            )}
-          </button>
-        </div>
+          <div className="mx-3 border-t border-g-100" />
 
-        {/* ── Page content ────────────────────────────── */}
-        <div className="h-[calc(100vh-56px)] overflow-y-auto">
+          {/* Main nav items */}
+          <div className="p-3 space-y-px">
+            {NAV_ITEMS.map((item) => (
+              <NavItem key={item.id} item={item} isActive={activeTab === item.id} onClick={() => setActiveTab(item.id)} />
+            ))}
+          </div>
 
-          {/* ========== CHAT ========== */}
-          {activeTab === 'chat' && (
-            <div className="h-full">
-              <ChatPanel />
-            </div>
-          )}
+          <div className="mx-3 border-t border-g-100" />
 
-          {/* ========== OBSERVATORY ========== */}
-          {activeTab === 'observatory' && <Observatory />}
+          {/* Bottom items */}
+          <div className="p-3 space-y-px">
+            {NAV_BOTTOM.map((item) => (
+              <NavItem key={item.id} item={item} isActive={activeTab === item.id} onClick={() => setActiveTab(item.id)} />
+            ))}
+          </div>
 
-          {/* ========== SKILLS ========== */}
-          {activeTab === 'skills' && <SkillBrowser />}
+          {/* Version */}
+          <div className="mt-auto border-t border-g-100 px-4 py-2.5 text-[11px] text-g-400 font-light">
+            ReconX v2.0 — Multi-agent · LangGraph
+          </div>
+        </aside>
 
-          {/* ========== SOURCE DATA ========== */}
-          {activeTab === 'data' && (
-            <div className="p-6">
-              <DataExplorer />
-            </div>
-          )}
+        {/* ════════ MAIN CONTENT ════════ */}
+        <main className="flex-1 min-w-0 overflow-y-auto bg-g-50">
 
-          {/* ========== RECONCILIATION ========== */}
+          {activeTab === 'briefing' && <Briefing onNavigate={setActiveTab} />}
+          {activeTab === 'observatory' && <Observatory reportType={activeRegulation} />}
+          {activeTab === 'actions' && <Actions reportType={activeRegulation} />}
+          {activeTab === 'auditlog' && <AuditLog reportType={activeRegulation} />}
+          {activeTab === 'approvals' && <ApprovalQueue reportType={activeRegulation} />}
+          {activeTab === 'reports' && <ReportGrid reportType={activeRegulation} />}
+          {activeTab === 'platform' && <Platform />}
+          {activeTab === 'data' && <div className="p-6"><DataExplorer /></div>}
+
+          {/* ── Reconciliation ── */}
           {activeTab === 'recon' && (
             <div className="p-6 max-w-[960px] mx-auto">
-
-              {/* REPORT SELECTOR */}
               <div className="mb-6">
                 <ReportSelector
                   reports={availableReports}
@@ -348,132 +273,88 @@ function App() {
                 />
               </div>
 
-              {/* CONFIG BAR */}
               {hasReport && (
-                <div
-                  className="bg-surface-card rounded-lg px-5 py-4 mb-6 flex items-center justify-between gap-4 flex-wrap border border-surface-border"
-                  style={{ animation: 'rx-fadein 0.3s ease-out' }}
-                >
+                <div className="card px-5 py-4 mb-6 flex items-center justify-between gap-4 flex-wrap"
+                  style={{ animation: 'rx-fadein 0.3s ease-out' }}>
                   <div className="flex items-center gap-4 flex-wrap">
                     <div>
-                      <div className="text-[13px] text-zinc-400">
-                        {selectedReportInfo?.name || selectedReport}
-                      </div>
-                      <div className="text-[12px] text-zinc-600">
-                        {selectedReportInfo?.description}
-                      </div>
+                      <div className="text-[13px] text-g-700">{selectedReportInfo?.name || selectedReport}</div>
+                      <div className="text-[12px] text-g-400 font-light">{selectedReportInfo?.description}</div>
                     </div>
-                    <div className="h-8 w-px bg-surface-border hidden sm:block" />
+                    <div className="h-8 w-px bg-g-200 hidden sm:block" />
                     <div>
-                      <label className="text-[11px] text-zinc-500 block mb-1">Report date</label>
-                      <input
-                        type="date"
-                        value={reportDate}
-                        onChange={(e) => setReportDate(e.target.value)}
+                      <label className="text-[11px] text-g-500 block mb-1">Report date</label>
+                      <input type="date" value={reportDate} onChange={(e) => setReportDate(e.target.value)}
                         disabled={isRunning}
-                        className="bg-surface text-zinc-100 text-[14px] rounded-md px-3 py-1.5 border border-surface-border focus:outline-none focus:border-blue-500"
-                      />
+                        className="bg-white text-g-800 text-[14px] rounded-lg px-3 py-1.5 border border-g-200 focus:outline-none focus:border-navy" />
                     </div>
                   </div>
                   <button
-                    onClick={handleStart}
-                    disabled={isRunning || !hasReport}
-                    className="rounded-lg px-5 py-2 text-[13px] font-medium transition-all hover:opacity-90 disabled:opacity-100 shrink-0"
-                    style={{
-                      backgroundColor: isRunning ? '#3f3f46' : '#185FA5',
-                      color: isRunning ? '#a1a1aa' : '#ffffff',
-                    }}
-                  >
+                    onClick={handleStart} disabled={isRunning || !hasReport}
+                    className="rounded-lg px-5 py-2 text-[13px] font-medium transition-all hover:opacity-90 disabled:opacity-40 shrink-0"
+                    style={{ backgroundColor: isRunning ? '#e5e7eb' : '#0c1f3d', color: isRunning ? '#9ca3af' : '#fff' }}>
                     {getButtonContent()}
                   </button>
                 </div>
               )}
 
-              {/* ERROR BANNER */}
               {phase === 'error' && apiError && (
-                <div className="bg-red-900/30 border border-red-500/30 rounded-lg px-4 py-3 mb-6 text-[13px] text-red-300">
+                <div className="bg-status-red-light border border-status-red/30 rounded-lg px-4 py-3 mb-6 text-[13px] text-status-red">
                   {apiError}
                 </div>
               )}
 
-              {/* CONTEXT SECTION */}
               {hasReport && reportContext && (
                 <div className="mb-6" style={{ animation: 'rx-fadein 0.35s ease-out' }}>
                   <ReconContext context={reportContext} />
                 </div>
               )}
 
-              {/* IDLE STATE */}
               {hasReport && phase === 'idle' && (
                 <div className="py-16 text-center">
-                  <p className="text-[14px] text-zinc-600 mb-4">
-                    Configure the date and press Start reconciliation
-                  </p>
-                  <p className="text-[11px] text-zinc-700">
-                    The agent will extract source and target data, compare positions, and classify breaks
-                  </p>
+                  <p className="text-[14px] text-g-500 mb-4">Configure the date and press Start reconciliation</p>
+                  <p className="text-[11px] text-g-400 font-light">The agent will extract source and target data, compare positions, and classify breaks</p>
                 </div>
               )}
 
-              {/* NO REPORT SELECTED */}
               {!hasReport && !reportsLoading && (
                 <div className="py-20 text-center">
-                  <p className="text-[14px] text-zinc-600">
-                    Select a report above to get started
-                  </p>
+                  <p className="text-[14px] text-g-500">Select a report above to get started</p>
                 </div>
               )}
 
-              {/* PROGRESS + SKILLS */}
               {(phase === 'running' || phase === 'done') && reportSteps.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_280px] gap-6">
                   <div>
-                    <div className="text-[14px] font-medium text-zinc-100 mb-3">
-                      Reconciliation progress
-                    </div>
+                    <div className="text-[14px] font-medium text-g-800 mb-3">Reconciliation progress</div>
                     <div className="space-y-2.5">
                       {reportSteps.map((step, i) => (
-                        <StepCard
-                          key={step.id}
-                          step={step}
-                          status={statuses[i] || 'pending'}
-                          elapsed={
-                            i === currentStep ? stepElapsed : i < currentStep ? 99999 : 0
-                          }
-                          stepIndex={i}
-                          totalSteps={reportSteps.length}
-                          skills={reportContext?.skills || []}
-                        />
+                        <StepCard key={step.id} step={step} status={statuses[i] || 'pending'}
+                          elapsed={i === currentStep ? stepElapsed : i < currentStep ? 99999 : 0}
+                          stepIndex={i} totalSteps={reportSteps.length}
+                          skills={reportContext?.skills || []} />
                       ))}
                     </div>
                     {isRunning && (
                       <div className="flex items-center gap-2 mt-3">
-                        <div
-                          className="w-1.5 h-1.5 rounded-full animate-rx-pulse"
-                          style={{ backgroundColor: '#22c55e' }}
-                        />
-                        <span className="text-[12px] text-zinc-600">
-                          {Math.floor(elapsed / 1000)}s elapsed
-                        </span>
+                        <div className="w-1.5 h-1.5 rounded-full animate-pulse-dot bg-status-green" />
+                        <span className="text-[12px] text-g-500">{Math.floor(elapsed / 1000)}s elapsed</span>
                       </div>
                     )}
                   </div>
-                  <div>
-                    <SkillShowcase skills={reportContext?.skills || []} />
-                  </div>
+                  <div><SkillShowcase skills={reportContext?.skills || []} /></div>
                 </div>
               )}
 
-              {/* REPORT */}
               <div ref={reportRef}>
                 <BreakReport report={apiReport} visible={phase === 'done' && !!apiReport} />
               </div>
             </div>
           )}
-        </div>
-      </main>
+        </main>
+      </div>
 
-      {/* FloatingChat - persists across all tabs */}
+      {/* Floating Chat */}
       <FloatingChat
         isOpen={floatingChatOpen}
         onClose={() => setFloatingChatOpen(false)}
