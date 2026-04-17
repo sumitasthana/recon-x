@@ -851,6 +851,39 @@ def get_observatory_detail(report_type: str, date: str):
         return json.load(f)
 
 
+# ---------- Platform: Prompts ----------
+
+from chat.prompt_loader import get_prompt_loader
+
+
+@app.get("/api/platform/prompts")
+def list_prompts():
+    """List all agent prompt metadata (for Prompt Studio UI)."""
+    return get_prompt_loader().list_prompts()
+
+
+@app.get("/api/platform/prompts/{name}")
+def get_prompt(name: str):
+    """Get full prompt metadata including system_prompt text."""
+    try:
+        return get_prompt_loader().get_metadata(name)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+class PromptUpdateRequest(BaseModel):
+    yaml_content: str
+
+
+@app.put("/api/platform/prompts/{name}")
+def update_prompt(name: str, request: PromptUpdateRequest):
+    """Update a prompt from YAML content. Persists to disk and reloads."""
+    try:
+        return get_prompt_loader().update_prompt(name, request.yaml_content)
+    except (ValueError, KeyError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 # ---------- Platform Metrics ----------
 
 from llm.client import get_metrics as get_llm_metrics

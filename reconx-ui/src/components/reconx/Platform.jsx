@@ -65,12 +65,7 @@ const SKILLS = [
   { name: 'Baseline', type: 'Foundation', coverage: '100%', docs: 1, freshness: 'Apr 2026', coverageColor: '#1a7f4b' },
 ];
 
-const PROMPTS = [
-  { agent: 'Supervisor', version: 'v1.0', status: 'live', tokens: '~650', lastEdit: 'Apr 16, 2026' },
-  { agent: 'Data Analyst', version: 'v1.0', status: 'live', tokens: '~180', lastEdit: 'Apr 16, 2026' },
-  { agent: 'Regulatory Expert', version: 'v1.0', status: 'live', tokens: '~220', lastEdit: 'Apr 16, 2026' },
-  { agent: 'Pipeline Operator', version: 'v1.0', status: 'live', tokens: '~160', lastEdit: 'Apr 16, 2026' },
-];
+// Prompts are now loaded live from /api/platform/prompts (YAML files on disk)
 
 const PIPELINES = [
   { name: 'DuckDB · FR 2052a', status: 'Fresh', lastSync: '2:14 AM', rows: '1,000', color: '#1a7f4b' },
@@ -171,24 +166,130 @@ function SkillsLibrary() {
 }
 
 function PromptStudio() {
+  const [prompts, setPrompts] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [editYaml, setEditYaml] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState('');
+
+  useEffect(() => {
+    fetch('/api/platform/prompts')
+      .then(r => r.json())
+      .then(data => {
+        setPrompts(data);
+        if (data.length > 0 && !selected) setSelected(data[0].name);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!selected) return;
+    fetch(`/api/platform/prompts/${selected}`)
+      .then(r => r.json())
+      .then(data => {
+        // Reconstruct YAML for the editor
+        const yaml = [
+          `name: ${data.name}`,
+          `version: "${data.version}"`,
+          `description: ${data.description}`,
+          `model_tier: ${data.model_tier}`,
+          `tags: [${data.tags.join(', ')}]`,
+          '',
+          'system_prompt: |',
+          ...data.system_prompt.split('\n').map(l => '  ' + l),
+          data.context_template ? '' : null,
+          data.context_template ? 'context_template: |' : null,
+          ...(data.context_template ? data.context_template.split('\n').map(l => '  ' + l) : []),
+        ].filter(l => l !== null).join('\n');
+        setEditYaml(yaml);
+      })
+      .catch(() => {});
+  }, [selected]);
+
+  const handleSave = () => {
+    if (!selected || !editYaml.trim()) return;
+    setSaving(true);
+    setSaveMsg('');
+    fetch(`/api/platform/prompts/${selected}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ yaml_content: editYaml }),
+    })
+      .then(r => {
+        if (!r.ok) throw new Error('Save failed');
+        return r.json();
+      })
+      .then(data => {
+        setSaveMsg(`Saved v${data.version}`);
+        // Refresh list
+        fetch('/api/platform/prompts').then(r => r.json()).then(setPrompts);
+        setTimeout(() => setSaveMsg(''), 3000);
+      })
+      .catch(() => setSaveMsg('Error saving'))
+      .finally(() => setSaving(false));
+  };
+
+  const selectedMeta = prompts.find(p => p.name === selected);
+  const tokenEst = editYaml ? Math.round(editYaml.length / 4) : 0;
+
   return (
     <>
-      <div className="card overflow-hidden mb-4">
-        <div className="px-4 py-3 border-b border-g-100">
-          <span className="text-[12px] font-medium text-g-700">Agent prompts</span>
-        </div>
-        {PROMPTS.map((p) => (
-          <div key={p.agent} className="flex items-center gap-3 px-4 py-3 border-b border-g-100 last:border-none">
-            <div className="flex-1">
-              <div className="text-[12px] font-medium text-g-800">{p.agent}</div>
-              <div className="text-[10px] text-g-400 mt-0.5">Tokens: {p.tokens} · Last edit: {p.lastEdit}</div>
-            </div>
-            <span className="bdg-green">{p.version} · {p.status}</span>
+      <div className="grid grid-cols-[240px_1fr] gap-4" style={{ height: 'calc(100vh - 240px)', minHeight: 400 }}>
+        {/* Prompt list */}
+        <div className="card overflow-hidden flex flex-col">
+          <div className="px-4 py-3 border-b border-g-100 flex items-center justify-between flex-shrink-0">
+            <span className="text-[12px] font-medium text-g-700">Agent prompts</span>
+            <span className="text-[10px] text-g-400">{prompts.length} loaded</span>
           </div>
-        ))}
-      </div>
-      <div className="text-[11px] text-g-400 font-light italic">
-        Prompt editing is managed via the codebase (chat/agent.py). A visual editor is planned for a future release.
+          <div className="flex-1 overflow-y-auto">
+            {prompts.map((p) => (
+              <button key={p.name} onClick={() => setSelected(p.name)}
+                className="w-full text-left px-4 py-3 border-b border-g-100 last:border-none transition-colors"
+                style={{ background: selected === p.name ? '#e8eef7' : 'transparent' }}>
+                <div className="text-[12px] font-medium text-g-800">{p.name}</div>
+                <div className="text-[10px] text-g-400 mt-0.5">{p.model_tier} v{p.version}</div>
+                <div className="flex gap-1 mt-1.5 flex-wrap">
+                  {p.tags.map(t => (
+                    <span key={t} className="text-[9px] px-1.5 py-px rounded bg-g-100 text-g-500">{t}</span>
+                  ))}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Editor */}
+        <div className="card overflow-hidden flex flex-col">
+          <div className="px-4 py-3 border-b border-g-100 flex items-center justify-between flex-shrink-0">
+            <div>
+              <span className="text-[12px] font-medium text-g-700">
+                {selectedMeta?.name || 'Select a prompt'}
+              </span>
+              {selectedMeta && (
+                <span className="text-[10px] text-g-400 ml-2">
+                  v{selectedMeta.version} · ~{tokenEst} tokens · {selectedMeta.file}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {saveMsg && <span className="text-[11px] font-medium" style={{ color: saveMsg.includes('Error') ? '#b91c1c' : '#1a7f4b' }}>{saveMsg}</span>}
+              <button onClick={handleSave} disabled={saving || !selected}
+                className="px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all disabled:opacity-40"
+                style={{ background: '#0c1f3d', color: '#fff' }}>
+                {saving ? 'Saving...' : 'Save & deploy'}
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            <textarea
+              value={editYaml}
+              onChange={(e) => setEditYaml(e.target.value)}
+              className="w-full h-full border-none outline-none resize-none p-4 text-[12px] leading-[1.7] bg-transparent"
+              style={{ fontFamily: "'DM Mono', monospace", color: '#1f2937' }}
+              spellCheck={false}
+            />
+          </div>
+        </div>
       </div>
     </>
   );
