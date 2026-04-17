@@ -27,6 +27,7 @@ from reports.fr2590.data_scaffold import ensure_fr2590_tables, create_axiomsl_te
 
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 from chat.agent import build_chat_agent, create_checkpointer_context
+from llm.client import record_call
 
 
 @asynccontextmanager
@@ -349,6 +350,9 @@ async def chat(request: ChatRequest):
 
                 yield {"event": "done", "data": json.dumps({})}
                 log.info("chat.complete", tokens=token_count)
+
+                # Record metrics for Platform dashboard
+                record_call("supervisor", input_tokens=token_count * 4)
 
             except asyncio.TimeoutError:
                 log.warning("chat.timeout", timeout=CHAT_TIMEOUT_SECONDS)
@@ -845,6 +849,17 @@ def get_observatory_detail(report_type: str, date: str):
         raise HTTPException(status_code=404, detail=f"No report for {report_type} on {date}")
     with open(path) as f:
         return json.load(f)
+
+
+# ---------- Platform Metrics ----------
+
+from llm.client import get_metrics as get_llm_metrics
+
+
+@app.get("/api/platform/metrics")
+def platform_metrics():
+    """Return LLM budget, caching, and call metrics for the Platform dashboard."""
+    return get_llm_metrics()
 
 
 # ---------- Skills ----------

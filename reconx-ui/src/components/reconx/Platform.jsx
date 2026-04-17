@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import MetricCard from './MetricCard';
 
 /**
- * Platform Workbench — agent observatory, skills library, and prompt info.
- * Consolidates agent/skills/prompt details under a single "Platform" view.
+ * Platform Workbench — agent observatory, skills library, prompt info,
+ * budget management, and caching metrics.
  */
 
 const PLATFORM_TABS = [
   { id: 'agents', label: 'Agent observatory' },
+  { id: 'budget', label: 'Budget & Caching' },
   { id: 'skills', label: 'Skills library' },
   { id: 'prompts', label: 'Prompt studio' },
   { id: 'pipelines', label: 'Data pipelines' },
@@ -209,6 +210,137 @@ function DataPipelines() {
   );
 }
 
+/* ── Budget & Caching ───────────────────────────────── */
+
+function BudgetCaching() {
+  const [metrics, setMetrics] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/platform/metrics')
+      .then(r => r.json())
+      .then(data => { setMetrics(data); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="text-g-400 text-[12px] py-8 text-center">Loading metrics...</div>;
+  if (!metrics) return <div className="text-g-400 text-[12px] py-8 text-center">Could not load metrics</div>;
+
+  const sup = metrics.supervisor || {};
+  const spec = metrics.specialist || {};
+  const budgetCfg = metrics.budget_config || {};
+  const caching = metrics.caching || {};
+
+  const totalCalls = sup.calls + spec.calls;
+  const totalTokens = sup.input_tokens_est + spec.input_tokens_est;
+  const totalTrims = sup.budget_trims + spec.budget_trims;
+  const totalCacheReads = caching.total_cache_reads || 0;
+  const totalCacheWrites = caching.total_cache_writes || 0;
+
+  return (
+    <>
+      {/* Top-level metrics */}
+      <div className="grid grid-cols-4 gap-3 mb-5">
+        <MetricCard label="Total LLM calls" value={totalCalls} sub="supervisor + specialist" />
+        <MetricCard label="Input tokens (est.)" value={totalTokens.toLocaleString()} sub="across all calls" />
+        <MetricCard label="Budget trims" value={totalTrims} sub={totalTrims > 0 ? 'Context was trimmed to fit' : 'No trimming needed'} color={totalTrims > 0 ? '#b45309' : '#1a7f4b'} />
+        <MetricCard label="Cache reads" value={totalCacheReads} sub={totalCacheReads > 0 ? '90% token discount' : 'Accumulating...'} color={totalCacheReads > 0 ? '#1a7f4b' : '#6b7280'} />
+      </div>
+
+      {/* Budget configuration */}
+      <div className="grid grid-cols-2 gap-4 mb-5">
+        <div className="card p-4">
+          <div className="text-[10px] font-medium text-g-400 uppercase tracking-wider mb-3">Supervisor budget</div>
+          <div className="space-y-2">
+            {budgetCfg.supervisor && Object.entries(budgetCfg.supervisor).map(([k, v]) => (
+              <div key={k} className="flex justify-between text-[12px] py-1 border-b border-g-100 last:border-none">
+                <span className="text-g-500">{k.replace(/_/g, ' ')}</span>
+                <span className="font-medium text-g-800 font-mono text-[11px]">{typeof v === 'number' ? v.toLocaleString() : v}</span>
+              </div>
+            ))}
+            <div className="flex justify-between text-[12px] py-1">
+              <span className="text-g-500">Calls</span>
+              <span className="font-medium text-g-800">{sup.calls}</span>
+            </div>
+            <div className="flex justify-between text-[12px] py-1">
+              <span className="text-g-500">Trims</span>
+              <span className="font-medium" style={{ color: sup.budget_trims > 0 ? '#b45309' : '#1a7f4b' }}>{sup.budget_trims}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="card p-4">
+          <div className="text-[10px] font-medium text-g-400 uppercase tracking-wider mb-3">Specialist budget</div>
+          <div className="space-y-2">
+            {budgetCfg.specialist && Object.entries(budgetCfg.specialist).map(([k, v]) => (
+              <div key={k} className="flex justify-between text-[12px] py-1 border-b border-g-100 last:border-none">
+                <span className="text-g-500">{k.replace(/_/g, ' ')}</span>
+                <span className="font-medium text-g-800 font-mono text-[11px]">{typeof v === 'number' ? v.toLocaleString() : v}</span>
+              </div>
+            ))}
+            <div className="flex justify-between text-[12px] py-1">
+              <span className="text-g-500">Calls</span>
+              <span className="font-medium text-g-800">{spec.calls}</span>
+            </div>
+            <div className="flex justify-between text-[12px] py-1">
+              <span className="text-g-500">Trims</span>
+              <span className="font-medium" style={{ color: spec.budget_trims > 0 ? '#b45309' : '#1a7f4b' }}>{spec.budget_trims}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Caching strategy */}
+      <div className="card p-4 mb-5">
+        <div className="text-[10px] font-medium text-g-400 uppercase tracking-wider mb-3">Prompt caching</div>
+        <div className="text-[12px] text-g-600 leading-relaxed font-light mb-3">
+          {caching.strategy}
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-g-50 rounded-lg p-3 border border-g-200">
+            <div className="text-[10px] text-g-400 uppercase tracking-wider mb-1">Cache writes</div>
+            <div className="text-[18px] font-medium text-g-800">{totalCacheWrites}</div>
+            <div className="text-[10px] text-g-400 mt-0.5">+25% write surcharge</div>
+          </div>
+          <div className="bg-g-50 rounded-lg p-3 border border-g-200">
+            <div className="text-[10px] text-g-400 uppercase tracking-wider mb-1">Cache reads</div>
+            <div className="text-[18px] font-medium" style={{ color: totalCacheReads > 0 ? '#1a7f4b' : '#6b7280' }}>{totalCacheReads}</div>
+            <div className="text-[10px] text-g-400 mt-0.5">90% token discount</div>
+          </div>
+          <div className="bg-g-50 rounded-lg p-3 border border-g-200">
+            <div className="text-[10px] text-g-400 uppercase tracking-wider mb-1">Breakpoints</div>
+            <div className="text-[18px] font-medium text-g-800">4 max</div>
+            <div className="text-[10px] text-g-400 mt-0.5">System + messages</div>
+          </div>
+        </div>
+      </div>
+
+      {/* How it works */}
+      <div className="card p-4">
+        <div className="text-[10px] font-medium text-g-400 uppercase tracking-wider mb-3">How budget management works</div>
+        <div className="space-y-3 text-[12px] text-g-600 font-light leading-relaxed">
+          <div className="flex gap-3">
+            <div className="w-6 h-6 rounded-full bg-navy-light flex items-center justify-center text-[10px] font-bold text-navy flex-shrink-0">1</div>
+            <div><span className="font-medium text-g-800">Estimate</span> — Before each LLM call, PromptBudgetManager estimates input tokens from system prompt + conversation history</div>
+          </div>
+          <div className="flex gap-3">
+            <div className="w-6 h-6 rounded-full bg-navy-light flex items-center justify-center text-[10px] font-bold text-navy flex-shrink-0">2</div>
+            <div><span className="font-medium text-g-800">Allocate</span> — Dynamic max_tokens is calculated: min(max_output, usable_window - input_tokens). Prevents truncated responses</div>
+          </div>
+          <div className="flex gap-3">
+            <div className="w-6 h-6 rounded-full bg-navy-light flex items-center justify-center text-[10px] font-bold text-navy flex-shrink-0">3</div>
+            <div><span className="font-medium text-g-800">Trim</span> — If supplemental content (RAG, domain knowledge) exceeds budget, it is trimmed at markdown section boundaries</div>
+          </div>
+          <div className="flex gap-3">
+            <div className="w-6 h-6 rounded-full bg-navy-light flex items-center justify-center text-[10px] font-bold text-navy flex-shrink-0">4</div>
+            <div><span className="font-medium text-g-800">Cache</span> — System prompts are marked with Anthropic ephemeral cache control. Repeated calls with same prefix get 90% input token discount</div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 /* ── Main ───────────────────────────────────────────── */
 
 export default function Platform() {
@@ -241,6 +373,7 @@ export default function Platform() {
       </div>
 
       {activeTab === 'agents' && <AgentObservatory />}
+      {activeTab === 'budget' && <BudgetCaching />}
       {activeTab === 'skills' && <SkillsLibrary />}
       {activeTab === 'prompts' && <PromptStudio />}
       {activeTab === 'pipelines' && <DataPipelines />}
