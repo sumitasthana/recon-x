@@ -363,6 +363,7 @@ async def chat(request: ChatRequest):
                                    "Try a simpler query or break your request into steps.",
                     }),
                 }
+                yield {"event": "done", "data": json.dumps({})}
 
             except Exception as e:
                 log.exception("chat.error", error=str(e))
@@ -370,6 +371,7 @@ async def chat(request: ChatRequest):
                     "event": "error",
                     "data": json.dumps({"message": str(e)}),
                 }
+                yield {"event": "done", "data": json.dumps({})}
 
     return EventSourceResponse(event_stream())
 

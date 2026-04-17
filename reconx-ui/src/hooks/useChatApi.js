@@ -3,12 +3,13 @@ import { useState, useCallback, useRef } from 'react';
 /**
  * Hook for streaming chat with the ReconX agent via POST /api/chat (SSE).
  *
- * Returns:
- *   - messages: array of { role, content, toolCalls?, toolResults? }
- *   - sendMessage(text): sends a user message and streams the response
- *   - isStreaming: whether the agent is currently responding
- *   - error: error message or null
- *   - clearMessages(): reset the conversation
+ * Handles:
+ *   - token events (incremental text append)
+ *   - tool_start / tool_result events (delegation tracking)
+ *   - error events (surface to UI)
+ *   - done events (mark streaming complete)
+ *   - HTTP stream end (fallback for marking complete)
+ *   - Fetch errors (network failures, aborts)
  */
 export function useChatApi() {
   const [messages, setMessages] = useState([]);
@@ -20,13 +21,11 @@ export function useChatApi() {
   const sendMessage = useCallback((text) => {
     if (!text.trim() || isStreaming) return;
 
-    // Add user message
     const userMsg = { role: 'user', content: text };
     setMessages((prev) => [...prev, userMsg]);
     setIsStreaming(true);
     setError(null);
 
-    // Placeholder for the assistant response
     const assistantMsg = {
       role: 'assistant',
       content: '',
@@ -48,13 +47,19 @@ export function useChatApi() {
       signal: controller.signal,
     })
       .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Server error: ${response.status}`);
+        }
+
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
+        let currentEvent = '';  // Track the SSE event type
 
         function processChunk() {
           return reader.read().then(({ done, value }) => {
             if (done) {
+              // HTTP stream ended — ensure we mark streaming complete
               setIsStreaming(false);
               return;
             }
@@ -64,14 +69,27 @@ export function useChatApi() {
             buffer = lines.pop() || '';
 
             for (const line of lines) {
+              // SSE event type line
+              if (line.startsWith('event: ')) {
+                currentEvent = line.slice(7).trim();
+
+                // Handle 'done' event immediately — this is the
+                // definitive signal that the server is finished.
+                if (currentEvent === 'done') {
+                  setIsStreaming(false);
+                  return; // Stop processing, stream is over
+                }
+                continue;
+              }
+
+              // SSE data line
               if (line.startsWith('data: ')) {
                 const dataStr = line.slice(6);
                 try {
                   const data = JSON.parse(dataStr);
 
-                  // Determine event type from data structure
                   if (data.tool && data.input !== undefined) {
-                    // tool_start event
+                    // tool_start
                     setMessages((prev) => {
                       const next = [...prev];
                       const last = { ...next[next.length - 1] };
@@ -83,7 +101,7 @@ export function useChatApi() {
                       return next;
                     });
                   } else if (data.tool && data.output !== undefined) {
-                    // tool_result event
+                    // tool_result
                     setMessages((prev) => {
                       const next = [...prev];
                       const last = { ...next[next.length - 1] };
@@ -95,7 +113,7 @@ export function useChatApi() {
                       return next;
                     });
                   } else if (data.token !== undefined) {
-                    // token event — append incremental token
+                    // token — append incremental
                     setMessages((prev) => {
                       const next = [...prev];
                       const last = { ...next[next.length - 1] };
@@ -104,12 +122,12 @@ export function useChatApi() {
                       return next;
                     });
                   } else if (data.message) {
-                    // error event
+                    // error from server
                     setError(data.message);
                     setIsStreaming(false);
                   }
                 } catch {
-                  // Not JSON — ignore
+                  // Not JSON — ignore (SSE comments, empty lines)
                 }
               }
             }

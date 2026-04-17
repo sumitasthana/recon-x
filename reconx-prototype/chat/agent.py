@@ -10,6 +10,7 @@ Agent prompts are loaded from YAML files in chat/prompts/.  Edit the YAML
 to change agent behavior without touching Python code.
 """
 
+import asyncio
 import os
 from langchain_core.messages import HumanMessage, SystemMessage, trim_messages
 from langchain_core.tools import tool
@@ -156,13 +157,27 @@ def _extract_text(content) -> str:
     return str(content)
 
 
-async def _invoke_specialist(agent, question: str) -> str:
-    """Invoke a specialist agent asynchronously and extract its final text.
+# Per-specialist timeout — prevents hanging if LLM or tool is unresponsive
+SPECIALIST_TIMEOUT_SECONDS = 120
 
-    Uses ainvoke() to avoid blocking the async event loop — this is critical
-    because the supervisor runs inside astream_events() which is async.
+
+async def _invoke_specialist(agent, question: str) -> str:
+    """Invoke a specialist agent asynchronously with a timeout.
+
+    Uses ainvoke() to avoid blocking the async event loop.  Wraps in
+    asyncio.wait_for() so a hanging specialist doesn't freeze the entire
+    chat stream.
     """
-    result = await agent.ainvoke({"messages": [HumanMessage(content=question)]})
+    try:
+        result = await asyncio.wait_for(
+            agent.ainvoke({"messages": [HumanMessage(content=question)]}),
+            timeout=SPECIALIST_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        return f"Specialist timed out after {SPECIALIST_TIMEOUT_SECONDS}s. Try a simpler query."
+    except Exception as e:
+        return f"Specialist error: {e}"
+
     messages = result.get("messages", [])
     for msg in reversed(messages):
         if hasattr(msg, "content") and msg.content and not getattr(msg, "tool_calls", None):
