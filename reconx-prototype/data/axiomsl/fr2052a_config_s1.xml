@@ -1,0 +1,5 @@
+<ingestion></ingestion>
+<fx rate_source="BLOOMBERG_BFIX_EOD"/>
+<hqla last_refresh="2026-04-15" enabled="true"/>
+<counterparty></counterparty>
+<output_format/>

@@ -3,19 +3,30 @@ import { useChatApi } from '../../hooks/useChatApi';
 import AlertBar from './AlertBar';
 import MetricCard from './MetricCard';
 
+/* Chip prompts are scoped to what the supervisor + specialists can actually
+   answer:
+   - Regulatory Expert: break lookups, root causes, regulatory definitions
+   - Data Analyst: SQL queries on source DuckDB
+   - Pipeline Operator: trigger a new reconciliation run
+*/
 const CHIPS = [
-  { text: 'Explain the last break report', style: 'alert' },
-  { text: 'Show all open actions', style: 'action' },
-  { text: 'What is the overall recon posture?', style: '' },
-  { text: 'Run FR 2052a reconciliation', style: '' },
-  { text: 'Observatory →', style: '', nav: 'observatory' },
+  // Diagnosis — why is the latest run failing?
+  { text: 'Why did the latest reconciliation fail?', style: 'alert' },
+  // Prioritization — which break matters most for filing?
+  { text: 'Rank today\u2019s breaks by notional impact', style: 'alert' },
+  // Source-target divergence
+  { text: 'Compare source vs target row counts per table', style: '' },
+  // Action — trigger a new run
+  { text: 'Run a fresh reconciliation', style: 'action' },
+  // Deep-dive
+  { text: 'Observatory \u2192', style: '', nav: 'observatory' },
 ];
 
 const FOLLOW_UPS = [
-  'What needs my attention today?',
-  'Walk me through the root causes',
-  'Show me failed records',
-  'Export the latest report',
+  'Explain BRK-001 in detail',
+  'Which counterparty LEIs are unsynced?',
+  'Show FX rate divergence for EUR/USD',
+  'Is today\u2019s score blocking the filing?',
 ];
 
 export default function Briefing({ onNavigate }) {
@@ -60,9 +71,8 @@ export default function Briefing({ onNavigate }) {
           Today's summary
         </div>
         <div className="text-[13px] text-g-700 leading-[1.7] font-light mb-4">
-          FR 2052a latest run scored 45/100 with 3 breaks — 1 high severity (FX rate source mismatch),
-          2 medium (counterparty sync lag, silent exclusion). FR 2590 has no recent reports.
-          Ask the assistant below for details on any break or to run a new reconciliation.
+          Reconcile source warehouse data against AxiomSL regulatory output for FR 2052a and FR 2590.
+          Ask about break root causes, inspect failed positions, or trigger a new reconciliation run.
         </div>
         <div className="flex flex-wrap gap-2">
           {CHIPS.map((chip) => (

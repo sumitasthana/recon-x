@@ -1,3 +1,5 @@
+from datetime import date as _date
+
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -52,9 +54,13 @@ class ClientSchema(BaseModel):
     fr2590: FR2590ClientSchema = FR2590ClientSchema()
 
 
+SCENARIOS = ["s1", "s2", "s3", "s4", "s5"]
+
+
 class ReconConfig(BaseSettings):
     report_type: str = "fr2052a"
-    report_date: str = "2026-04-04"
+    report_date: str = _date.today().isoformat()
+    scenario_id: str = "auto"  # "auto" cycles through s1-s5; or set explicitly
     entity_id: Optional[str] = None
     tolerance_notional_pct: float = 0.01
     tolerance_fx_delta: float = 0.005

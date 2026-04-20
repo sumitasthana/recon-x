@@ -56,16 +56,15 @@ const AGENTS = [
   },
 ];
 
-const SKILLS = [
-  { name: 'FR 2052a Domain', type: 'Domain', coverage: '78%', docs: 6, freshness: 'Apr 2026', coverageColor: '#b45309' },
-  { name: 'FR 2590 SCCL', type: 'Domain', coverage: '45%', docs: 3, freshness: 'Apr 2026', coverageColor: '#b91c1c' },
-  { name: 'Platform: Snowflake', type: 'Platform', coverage: '88%', docs: 1, freshness: 'Apr 2026', coverageColor: '#1a7f4b' },
-  { name: 'Platform: AxiomSL', type: 'Platform', coverage: '84%', docs: 1, freshness: 'Apr 2026', coverageColor: '#1a7f4b' },
-  { name: 'Client: BHC Alpha', type: 'Client', coverage: '91%', docs: 1, freshness: 'Apr 2026', coverageColor: '#1a7f4b' },
-  { name: 'Baseline', type: 'Foundation', coverage: '100%', docs: 1, freshness: 'Apr 2026', coverageColor: '#1a7f4b' },
-];
+// Skills are loaded live from /api/skills
+// Prompts are loaded live from /api/platform/prompts
 
-// Prompts are now loaded live from /api/platform/prompts (YAML files on disk)
+const TIER_STYLE = {
+  Domain:   { bg: '#eff4ff', fg: '#1d4ed8' },
+  Platform: { bg: '#f0fdfa', fg: '#0f766e' },
+  Client:   { bg: '#fef3cd', fg: '#b45309' },
+  Base:     { bg: '#f3f4f6', fg: '#6b7280' },
+};
 
 const PIPELINES = [
   { name: 'DuckDB · FR 2052a', status: 'Fresh', lastSync: '2:14 AM', rows: '1,000', color: '#1a7f4b' },
@@ -138,29 +137,96 @@ function AgentObservatory() {
 }
 
 function SkillsLibrary() {
+  const [skills, setSkills] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/skills')
+      .then(r => r.json())
+      .then(data => { setSkills(data || []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const fmtSize = (bytes) => bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;
+  const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+
   return (
     <>
       <div className="grid grid-cols-3 gap-3 mb-5">
-        <MetricCard label="Total skills" value={SKILLS.length} sub="loaded from SKILL.md files" />
+        <MetricCard label="Total skills" value={skills.length || '—'} sub="loaded from SKILL.md files" />
         <MetricCard label="RAG chunks" value="~30" sub="indexed in FAISS" />
         <MetricCard label="Embedding model" value="Titan v2" sub="amazon.titan-embed-text-v2:0" />
       </div>
-      <div className="card overflow-hidden">
-        <div className="px-4 py-3 border-b border-g-100 flex items-center justify-between">
-          <span className="text-[12px] font-medium text-g-700">All skills</span>
-          <span className="text-[10px] text-g-400">{SKILLS.length} total</span>
+
+      {/* Explainer */}
+      <div className="card p-4 mb-4">
+        <div className="text-[10px] font-medium text-g-400 uppercase tracking-wider mb-2">How skills work</div>
+        <div className="text-[12px] text-g-600 font-light leading-[1.6]">
+          Each skill is a markdown document that teaches an agent one thing — a regulatory rule, a platform integration, or a client-specific override.
+          When the user asks something, the supervisor routes the query to the right specialist; RAG retrieval matches the question against skill <strong className="text-g-800 font-medium">trigger patterns</strong> and injects relevant excerpts into the prompt.
+          Swap a skill file to cover a new regulation or onboard a new bank — no Python changes required.
         </div>
-        {SKILLS.map((skill) => (
-          <div key={skill.name} className="flex items-center gap-3 px-4 py-3 border-b border-g-100 last:border-none hover:bg-g-50 transition-colors">
-            <div className="flex-1">
-              <div className="text-[12px] font-medium text-g-800">{skill.name}</div>
-              <div className="text-[10px] text-g-400 mt-0.5">{skill.type} · {skill.docs} doc(s) · Updated {skill.freshness}</div>
-            </div>
-            <div className="text-[12px] font-medium" style={{ color: skill.coverageColor }}>{skill.coverage}</div>
-            <div className="w-[7px] h-[7px] rounded-full" style={{ background: skill.coverageColor }} />
-          </div>
-        ))}
       </div>
+
+      {loading ? (
+        <div className="card p-8 text-center text-[12px] text-g-400">Loading skills...</div>
+      ) : skills.length === 0 ? (
+        <div className="card p-8 text-center text-[12px] text-g-400">No skills registered.</div>
+      ) : (
+        <div className="space-y-2">
+          {skills.map((skill) => {
+            const tier = TIER_STYLE[skill.tier] || TIER_STYLE.Base;
+            return (
+              <div key={skill.id} className="card overflow-hidden">
+                {/* Header row */}
+                <div className="flex items-start gap-3 px-4 py-3 border-b border-g-100">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[13px] font-medium text-g-900">{skill.id}</span>
+                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full" style={{ background: tier.bg, color: tier.fg }}>
+                        {skill.tier}
+                      </span>
+                    </div>
+                    <div className="text-[12px] text-g-600 leading-[1.55] font-light">
+                      {skill.description || <span className="italic text-g-400">No description in SKILL.md frontmatter</span>}
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <div className="text-[10px] text-g-400 uppercase tracking-wider">Priority</div>
+                    <div className="text-[13px] font-medium text-g-700">{skill.priority}</div>
+                  </div>
+                </div>
+
+                {/* Trigger patterns */}
+                <div className="px-4 py-2.5 bg-g-50 border-b border-g-100">
+                  <div className="flex items-start gap-2.5">
+                    <span className="text-[10px] font-medium text-g-400 uppercase tracking-wider flex-shrink-0 pt-0.5">Triggers on</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(skill.trigger_patterns || []).length === 0 ? (
+                        <span className="text-[11px] text-g-400 italic">always loaded</span>
+                      ) : skill.trigger_patterns.map((pat) => (
+                        <span key={pat}
+                          className="text-[10px] font-mono px-2 py-0.5 rounded bg-white border border-g-200 text-g-600">
+                          {pat === '*' ? 'all queries' : `"${pat}"`}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer metadata */}
+                <div className="flex items-center gap-4 px-4 py-2 text-[10px] text-g-400 font-light">
+                  <span>{skill.filename}</span>
+                  <span>·</span>
+                  <span>{fmtSize(skill.size_bytes)}</span>
+                  <span>·</span>
+                  <span>Updated {fmtDate(skill.last_modified)}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </>
   );
 }

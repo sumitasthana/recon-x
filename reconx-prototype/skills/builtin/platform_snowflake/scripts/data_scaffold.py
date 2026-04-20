@@ -97,6 +97,7 @@ CREATE TABLE IF NOT EXISTS REF_HQLA_ELIGIBILITY (
 -- FACT_LIQUIDITY_POSITION: Main fact table for FR 2052a positions
 CREATE TABLE IF NOT EXISTS FACT_LIQUIDITY_POSITION (
     position_id INTEGER NOT NULL,
+    scenario_id VARCHAR(10) NOT NULL DEFAULT 's3',
     report_date DATE NOT NULL,
     reporting_entity_id INTEGER,
     source_system_id VARCHAR(50),
@@ -145,12 +146,13 @@ CREATE TABLE IF NOT EXISTS FACT_LIQUIDITY_POSITION (
     source_extract_timestamp TIMESTAMP,
     insert_ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     update_ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (position_id, report_date)
+    PRIMARY KEY (position_id, scenario_id, report_date)
 );
 
 --- V_RECON_SCOPE: Main reconciliation view (excludes internal metadata columns)
 CREATE OR REPLACE VIEW V_RECON_SCOPE AS
 SELECT
+    f.scenario_id,
     f.position_id, f.report_date, f.reporting_entity_id, f.source_system_id,
     f.product_code, f.table_assignment, f.flow_direction, f.product_category,
     f.counterparty_lei, f.counterparty_type_code, f.is_affiliated,
@@ -167,6 +169,7 @@ WHERE e.is_active = TRUE
 --- V_BRK004_CANDIDATES: Forward start candidates view for BRK-004
 CREATE OR REPLACE VIEW V_BRK004_CANDIDATES AS
 SELECT
+    scenario_id,
     position_id,
     product_code,
     notional_amount_usd,
@@ -300,7 +303,7 @@ def _generate_fact_liquidity_position_data(report_date, entities, num_rows=1000)
         product_id = random.choice(products)
         counterparty_id = random.choice(counterparties)
         currency = random.choice(currencies)
-        notional_orig = round(random.uniform(1000000, 100000000), 2)
+        notional_orig = round(random.uniform(100000, 5000000), 2)
         fx_rate = fx_rates[currency]
         notional_usd = round(notional_orig * fx_rate, 2)
 
@@ -423,24 +426,9 @@ def _load_data(conn, config: ReconConfig):
     """, securities)
     log.info("scaffold.data_loaded", table="REF_HQLA_ELIGIBILITY", rows=len(securities))
 
-    # Load FACT_LIQUIDITY_POSITION
-    entity_ids = [e[0] for e in entities]
-    positions = _generate_fact_liquidity_position_data(report_date, entity_ids, num_rows=1000)
-    conn.executemany("""
-        INSERT INTO FACT_LIQUIDITY_POSITION
-        (position_id, report_date, reporting_entity_id, source_system_id, product_id, counterparty_id, fx_rate_id,
-         product_code, table_assignment, flow_direction, product_category, counterparty_lei, counterparty_type_code,
-         is_affiliated, maturity_bucket_code, maturity_date, forward_start_flag, forward_start_date,
-         notional_amount_usd, fx_rate_to_usd, notional_amount_orig, notional_currency,
-         carrying_value_usd, market_value_usd, hqla_flag, hqla_level, rehypothecation_flag, collateral_cusip,
-         cusip, isin, security_type, credit_rating, repo_rate, haircut_pct, term_days,
-         is_fdic_insured, deposit_insurance_limit_usd, committed_amount_usd, drawn_amount_usd, undrawn_amount_usd,
-         data_quality_flag, lcr_applicable, nsfr_applicable,
-         load_timestamp, source_batch_id, etl_run_id, source_extract_timestamp)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, positions)
-    log.info("scaffold.data_loaded", table="FACT_LIQUIDITY_POSITION", rows=len(positions))
+    # FACT_LIQUIDITY_POSITION is populated by generate_synthetic_positions()
+    # which creates scenario-partitioned data for all 5 scenarios.
+    log.info("scaffold.data_skipped", table="FACT_LIQUIDITY_POSITION", note="populated by generate_synthetic_positions")
 
 
 def ensure_database(config: ReconConfig):
@@ -457,9 +445,12 @@ def ensure_database(config: ReconConfig):
     try:
         _load_data(conn, config)
         conn.commit()
-        log.info("scaffold.ensure_database.complete", db_path=config.db_path)
+        log.info("scaffold.dim_tables_loaded", db_path=config.db_path)
     finally:
         conn.close()
+
+    # Populate fact table with scenario-partitioned positions
+    generate_synthetic_positions(config)
 
 
 def verify_scaffold(config: ReconConfig) -> dict:
@@ -486,172 +477,139 @@ def verify_scaffold(config: ReconConfig) -> dict:
         conn.close()
 
 
+"""Scenario definitions — each scenario plants different break combinations.
+
+| ID | Name              | BRK-001 (FX) | BRK-002 (HQLA) | BRK-003 (CPTY) | BRK-004 (Silent) |
+|----|-------------------|-------------|---------------|---------------|-------------------|
+| s1 | Clean run         | No          | No            | No            | No                |
+| s2 | FX mismatch only  | Yes (30 EUR)| No            | No            | No                |
+| s3 | Multi-break       | Yes (30 EUR)| No            | Yes (12 LEIs) | Yes (11 fwd)      |
+| s4 | HQLA critical     | Yes (30 EUR)| Yes (8 pos)   | No            | No                |
+| s5 | Silent heavy      | No          | No            | Yes (20 LEIs) | Yes (25 fwd)      |
+"""
+
+SCENARIO_CONFIGS = {
+    "s1": {"brk001_eur_count": 0,  "brk002_hqla_count": 0, "brk003_lei_count": 0,  "brk004_fwd_count": 0,  "eur_fx_rate": 1.0825, "eur_notional": 0},
+    "s2": {"brk001_eur_count": 8,  "brk002_hqla_count": 0, "brk003_lei_count": 0,  "brk004_fwd_count": 0,  "eur_fx_rate": 1.0842, "eur_notional": 2_500_000},
+    "s3": {"brk001_eur_count": 12, "brk002_hqla_count": 0, "brk003_lei_count": 12, "brk004_fwd_count": 11, "eur_fx_rate": 1.0842, "eur_notional": 3_200_000},
+    "s4": {"brk001_eur_count": 20, "brk002_hqla_count": 8, "brk003_lei_count": 0,  "brk004_fwd_count": 0,  "eur_fx_rate": 1.0900, "eur_notional": 1_800_000},
+    "s5": {"brk001_eur_count": 0,  "brk002_hqla_count": 0, "brk003_lei_count": 20, "brk004_fwd_count": 25, "eur_fx_rate": 1.0825, "eur_notional": 0},
+}
+
+
 def generate_synthetic_positions(config: ReconConfig):
-    """Generate 500 synthetic positions with planted breaks.
+    """Generate positions for ALL 5 scenarios with planted breaks.
 
-    Distribution: T1:~80, T2:~70, T3:~60, T4:~50, T5:~60, T6:~50, T7:~40, T8:~40, T9:~30, T10:~20
-
-    PLANTED BREAKS:
-    - BRK-001: ~30 EUR positions in T5, fx_rate_to_usd=1.0842, total EUR book ~1.27B
-    - BRK-002: 3 positions with cusip IN ('3130AXXX1','3130AXXX2','9128284X5'), hqla_flag='Y'
-    - BRK-003: 12 positions with counterparty_lei IN ('2138007KXLC2WXJSXT05','549300YEUVVT5NJWXM25')
-    - BRK-004: exactly 11 in T6, product_category='FX_FORWARD', forward_start_flag=TRUE, forward_start_date=NULL
-
-    Rules: hqla_flag='Y' only T2/T7/T8, rehypo only T3, data_quality_flag='PASS', entity='ENT-001'.
+    Each scenario is a partition (scenario_id column) in FACT_LIQUIDITY_POSITION.
+    The source extractor filters by scenario_id to read the right data set.
     """
     import random
-    from datetime import datetime, timedelta, date
+    from datetime import datetime, timedelta
 
-    log.info("synthetic.generation.start", db_path=config.db_path)
-
-    # Parse report_date
+    log.info("synthetic.generation.start", db_path=config.db_path, scenarios=list(SCENARIO_CONFIGS.keys()))
     report_date = datetime.strptime(config.report_date, '%Y-%m-%d').date()
-    entity = 1  # ENT-001 maps to entity_id 1
 
-    # Table distribution
-    table_counts = {'T1': 80, 'T2': 70, 'T3': 60, 'T4': 50, 'T5': 60, 'T6': 50, 'T7': 40, 'T8': 40, 'T9': 30, 'T10': 20}
-    total = sum(table_counts.values())
-
-    # Base currencies and rates
+    table_dist = {'T1': 80, 'T2': 70, 'T3': 60, 'T4': 50, 'T5': 60, 'T6': 50, 'T7': 40, 'T8': 40, 'T9': 30, 'T10': 20}
+    product_map = {'T1': 'DEPOSIT', 'T2': 'SECURITY', 'T3': 'REPO', 'T4': 'LOAN', 'T5': 'DEPOSIT', 'T6': 'FX_FORWARD', 'T7': 'SECURITY', 'T8': 'SECURITY', 'T9': 'DEPOSIT', 'T10': 'MISC'}
     currencies = ['USD', 'EUR', 'GBP', 'JPY', 'CAD']
-    fx_rates = {'USD': 1.0, 'EUR': 1.0842, 'GBP': 1.2650, 'JPY': 0.0067, 'CAD': 0.7250}
+    base_fx = {'USD': 1.0, 'EUR': 1.0825, 'GBP': 1.2650, 'JPY': 0.0067, 'CAD': 0.7250}
+    brk003_leis = ['2138007KXLC2WXJSXT05', '549300YEUVVT5NJWXM25', 'NEWCP001XXXXXXXXXXXX', 'NEWCP002XXXXXXXXXXXX', '549300ZZZZZZZZZZZZ99']
 
-    # BRK-003 LEIs
-    brk003_leis = ['2138007KXLC2WXJSXT05', '549300YEUVVT5NJWXM25']
-
-    # Connect and clear existing positions
     conn = duckdb.connect(config.db_path)
     try:
         conn.execute("DELETE FROM FACT_LIQUIDITY_POSITION")
+        global_pid = 1
 
-        position_id = 1
-        brk001_positions = []
-        brk002_positions = []
-        brk003_positions = []
-        brk004_positions = []
-        unmapped_positions = []  # 12 positions for UNMAPPED_CPTY_EXCL filter
+        for scenario_id, sc in SCENARIO_CONFIGS.items():
+            rng = random.Random(hash(scenario_id))
+            brk001_n = sc["brk001_eur_count"]
+            brk002_n = sc["brk002_hqla_count"]
+            brk003_n = sc["brk003_lei_count"]
+            brk004_n = sc["brk004_fwd_count"]
+            eur_fx = sc["eur_fx_rate"]
 
-        for table_code, count in table_counts.items():
-            for _ in range(count):
-                # Determine rules based on table
-                hqla_flag = 'Y' if table_code in ['T2', 'T7', 'T8'] else 'N'
-                rehyp_flag = True if table_code == 'T3' else False
+            brk001_placed = brk002_placed = brk003_placed = brk004_placed = 0
 
-                # BRK-001: EUR positions in T5
-                if table_code == 'T5' and len(brk001_positions) < 30:
-                    currency = 'EUR'
-                    fx_rate = 1.0842  # Fixed rate as specified
-                    notional_orig = round(42333333.33, 2)  # Total ~1.27B / 30
-                else:
-                    currency = random.choice(currencies)
-                    fx_rate = fx_rates[currency]
-                    notional_orig = round(random.uniform(1000000, 100000000), 2)
-
-                notional_usd = round(notional_orig * fx_rate, 2)
-                counterparty_id = random.randint(1, 12)
-                counterparty_lei = f'LEI{position_id:05d}'
-
-                # BRK-003: 12 positions with specific LEIs
-                if len(brk003_positions) < 12 and table_code in ['T7', 'T8', 'T5']:
-                    counterparty_lei = random.choice(brk003_leis)
-                    brk003_positions.append(position_id)
-
-                # BRK-004: exactly 11 in T6, FX_FORWARD, forward_start_flag=TRUE, forward_start_date=NULL
-                forward_start_flag = False
-                forward_start_date = None
-                if table_code == 'T6' and len(brk004_positions) < 11:
-                    forward_start_flag = True
+            for table_code, count in table_dist.items():
+                for _ in range(count):
+                    # Defaults
+                    currency = rng.choice(currencies)
+                    fx_rate = base_fx[currency]
+                    notional_orig = round(rng.uniform(100_000, 5_000_000), 2)
+                    counterparty_lei = f'LEI{global_pid:05d}'
+                    forward_start_flag = False
                     forward_start_date = None
-                    brk004_positions.append(position_id)
-                elif table_code == 'T6':
-                    forward_start_flag = random.choice([True, False])
-                    if forward_start_flag:
-                        forward_start_date = report_date + timedelta(days=random.randint(1, 90))
+                    cusip = None
+                    hqla_flag = table_code in ['T2', 'T7', 'T8']
 
-                # BRK-002: 3 positions with specific cusips
-                cusip = None
-                if len(brk002_positions) < 3 and table_code in ['T2', 'T7', 'T8']:
-                    cusip = random.choice(['3130AXXX1', '3130AXXX2', '9128284X5'])
-                    hqla_flag = 'Y'  # Force HQLA flag
-                    brk002_positions.append(position_id)
+                    # BRK-001: EUR positions in T5 with divergent FX rate
+                    if table_code == 'T5' and brk001_placed < brk001_n:
+                        currency = 'EUR'
+                        fx_rate = eur_fx
+                        # Vary notional per scenario so impact differs
+                        base_notional = sc.get("eur_notional", 42_333_333)
+                        notional_orig = round(base_notional * rng.uniform(0.8, 1.2), 2)
+                        brk001_placed += 1
 
-                # UNMAPPED_CPTY_EXCL: 12 positions with counterparty_type_code='UNMAPPED' and is_affiliated=FALSE
-                is_affiliated = False
-                counterparty_type_code = 'BANK'
-                if len(unmapped_positions) < 12:
-                    counterparty_type_code = 'UNMAPPED'
-                    is_affiliated = False
-                    unmapped_positions.append(position_id)
+                    # BRK-002: HQLA positions with specific CUSIPs
+                    if table_code in ['T2', 'T7', 'T8'] and brk002_placed < brk002_n:
+                        cusip = rng.choice(['3130AXXX1', '3130AXXX2', '9128284X5'])
+                        hqla_flag = True
+                        brk002_placed += 1
 
-                # Determine product based on table
-                product_map = {
-                    'T1': 'DEPOSIT', 'T2': 'SECURITY', 'T3': 'REPO', 'T4': 'LOAN',
-                    'T5': 'DEPOSIT', 'T6': 'FX_FORWARD', 'T7': 'SECURITY', 'T8': 'SECURITY',
-                    'T9': 'DEPOSIT', 'T10': 'MISC'
-                }
-                product_category = product_map.get(table_code, 'MISC')
+                    # BRK-003: Unsynced counterparty LEIs
+                    if table_code in ['T5', 'T7', 'T8'] and brk003_placed < brk003_n:
+                        counterparty_lei = brk003_leis[brk003_placed % len(brk003_leis)]
+                        brk003_placed += 1
 
-                # Insert position
-                conn.execute("""
-                    INSERT INTO FACT_LIQUIDITY_POSITION (
-                        position_id, report_date, reporting_entity_id, source_system_id, product_id, counterparty_id,
-                        fx_rate_id, product_code, table_assignment, flow_direction, product_category,
-                        counterparty_lei, counterparty_type_code, is_affiliated, maturity_bucket_code,
-                        maturity_date, forward_start_flag, forward_start_date, notional_amount_usd,
-                        fx_rate_to_usd, notional_amount_orig, notional_currency, carrying_value_usd,
-                        market_value_usd, hqla_flag, hqla_level, rehypothecation_flag, collateral_cusip,
-                        cusip, isin, security_type, credit_rating, repo_rate, haircut_pct, term_days,
-                        is_fdic_insured, deposit_insurance_limit_usd, committed_amount_usd, drawn_amount_usd,
-                        undrawn_amount_usd, data_quality_flag, lcr_applicable, nsfr_applicable,
-                        load_timestamp, source_batch_id, etl_run_id, source_extract_timestamp
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    position_id, report_date, entity, 'CORE', random.randint(1, 14), counterparty_id, 1,
-                    f'PROD{random.randint(1,14):03d}', table_code, 'INFLOW' if random.random() > 0.5 else 'OUTFLOW',
-                    product_category, counterparty_lei, counterparty_type_code, is_affiliated,
-                    int(table_code[1:]), report_date + timedelta(days=random.randint(1, 365)),
-                    forward_start_flag, forward_start_date,
-                    notional_usd, fx_rate, notional_orig, currency,
-                    notional_usd * 0.98, notional_usd * 1.02,
-                    hqla_flag == 'Y', 1 if hqla_flag == 'Y' else None, rehyp_flag, None,
-                    cusip, None, None, None,
-                    None, None, None,
-                    None, None,
-                    None, None, None,
-                    'PASS', True, True,
-                    datetime.now(), 'BATCH_SYN', 'SYNTHETIC', datetime.now()
-                ))
+                    # BRK-004: Forward start NULL candidates
+                    if table_code == 'T6' and brk004_placed < brk004_n:
+                        forward_start_flag = True
+                        forward_start_date = None
+                        brk004_placed += 1
+                    elif table_code == 'T6':
+                        forward_start_flag = rng.choice([True, False])
+                        if forward_start_flag:
+                            forward_start_date = report_date + timedelta(days=rng.randint(1, 90))
 
-                if table_code == 'T5' and currency == 'EUR':
-                    brk001_positions.append(position_id)
+                    notional_usd = round(notional_orig * fx_rate, 2)
 
-                position_id += 1
+                    conn.execute("""
+                        INSERT INTO FACT_LIQUIDITY_POSITION (
+                            position_id, scenario_id, report_date, reporting_entity_id, source_system_id,
+                            product_id, counterparty_id, fx_rate_id, product_code, table_assignment,
+                            flow_direction, product_category, counterparty_lei, counterparty_type_code,
+                            is_affiliated, maturity_bucket_code, maturity_date, forward_start_flag,
+                            forward_start_date, notional_amount_usd, fx_rate_to_usd, notional_amount_orig,
+                            notional_currency, carrying_value_usd, market_value_usd, hqla_flag, hqla_level,
+                            rehypothecation_flag, cusip, data_quality_flag, lcr_applicable, nsfr_applicable,
+                            load_timestamp, source_batch_id, etl_run_id, source_extract_timestamp
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        global_pid, scenario_id, report_date, 1, 'CORE',
+                        rng.randint(1, 14), rng.randint(1, 12), 1,
+                        f'PROD{rng.randint(1,14):03d}', table_code,
+                        'INFLOW' if rng.random() > 0.5 else 'OUTFLOW',
+                        product_map.get(table_code, 'MISC'),
+                        counterparty_lei, 'BANK', False,
+                        int(table_code[1:]) if table_code[1:].isdigit() else 1,
+                        report_date + timedelta(days=rng.randint(1, 365)),
+                        forward_start_flag, forward_start_date,
+                        notional_usd, fx_rate, notional_orig, currency,
+                        notional_usd * 0.98, notional_usd * 1.02,
+                        hqla_flag, 1 if hqla_flag else None,
+                        table_code == 'T3', cusip,
+                        'PASS', True, True,
+                        datetime.now(), f'BATCH_{scenario_id}', 'SYNTHETIC', datetime.now(),
+                    ))
+                    global_pid += 1
+
+            log.info("synthetic.scenario_complete", scenario=scenario_id,
+                     brk001=brk001_placed, brk002=brk002_placed,
+                     brk003=brk003_placed, brk004=brk004_placed)
 
         conn.commit()
-
-        # Log results
-        log.info("synthetic.generated", total=position_id-1, table_counts=table_counts)
-        log.info("synthetic.planted_break", break_id="BRK-001", positions=len(brk001_positions), total_eur_book=round(len(brk001_positions) * 42333333.33 * 1.0842, 2))
-        log.info("synthetic.planted_break", break_id="BRK-002", positions=len(brk002_positions), cusips=['3130AXXX1','3130AXXX2','9128284X5'])
-        log.info("synthetic.planted_break", break_id="BRK-003", positions=len(brk003_positions), leis=brk003_leis)
-        log.info("synthetic.planted_break", break_id="BRK-004", positions=len(brk004_positions), table='T6', category='FX_FORWARD')
-        log.info("synthetic.planted_break", break_id="UNMAPPED_CPTY", positions=len(unmapped_positions), counterparty_type='UNMAPPED')
-
-        # Assert V_BRK004_CANDIDATES returns exactly 11
-        result = conn.execute("""
-            SELECT COUNT(*) FROM FACT_LIQUIDITY_POSITION
-            WHERE table_assignment = 'T6'
-            AND product_category = 'FX_FORWARD'
-            AND forward_start_flag = TRUE
-            AND forward_start_date IS NULL
-        """).fetchone()
-        brk004_count = result[0]
-
-        assert brk004_count == 11, f"BRK-004 assertion failed: expected 11, got {brk004_count}"
-        log.info("synthetic.assertion.passed", assertion="V_BRK004_CANDIDATES", expected=11, actual=brk004_count)
-
-        log.info("synthetic.generation.complete", total_positions=position_id-1)
-
+        log.info("synthetic.generation.complete", total_positions=global_pid - 1, scenarios=len(SCENARIO_CONFIGS))
     finally:
         conn.close()
 

@@ -13,10 +13,7 @@ import FloatingChat from './components/reconx/FloatingChat';
 
 /* ── Kratos-inspired components ── */
 import Briefing from './components/reconx/Briefing';
-import Actions from './components/reconx/Actions';
 import AuditLog from './components/reconx/AuditLog';
-import ApprovalQueue from './components/reconx/ApprovalQueue';
-import ReportGrid from './components/reconx/ReportGrid';
 import Platform from './components/reconx/Platform';
 
 const STEP_DURATION = 6500;
@@ -31,10 +28,7 @@ const REGULATIONS = [
 const NAV_ITEMS = [
   { id: 'observatory', label: 'Observatory' },
   { id: 'recon', label: 'Reconciliation' },
-  { id: 'actions', label: 'Actions', badge: '3', badgeType: 'amber' },
-  { id: 'reports', label: 'Reports' },
   { id: 'auditlog', label: 'Audit log' },
-  { id: 'approvals', label: 'Approval queue', badge: '1', badgeType: 'red' },
 ];
 
 const NAV_BOTTOM = [
@@ -48,7 +42,7 @@ function App() {
   const [floatingChatOpen, setFloatingChatOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [selectedReport, setSelectedReport] = useState(null);
-  const [reportDate, setReportDate] = useState('2026-04-04');
+  const [reportDate, setReportDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   // Sync Reconciliation tab's report selector with global regulation
   useEffect(() => {
@@ -253,11 +247,8 @@ function App() {
         <main className="flex-1 min-w-0 overflow-y-auto bg-g-50">
 
           {activeTab === 'briefing' && <Briefing onNavigate={setActiveTab} />}
-          {activeTab === 'observatory' && <Observatory reportType={activeRegulation} />}
-          {activeTab === 'actions' && <Actions reportType={activeRegulation} />}
+          {activeTab === 'observatory' && <Observatory reportType={activeRegulation} reconPhase={phase} />}
           {activeTab === 'auditlog' && <AuditLog reportType={activeRegulation} />}
-          {activeTab === 'approvals' && <ApprovalQueue reportType={activeRegulation} />}
-          {activeTab === 'reports' && <ReportGrid reportType={activeRegulation} />}
           {activeTab === 'platform' && <Platform />}
           {activeTab === 'data' && <div className="p-6"><DataExplorer /></div>}
 

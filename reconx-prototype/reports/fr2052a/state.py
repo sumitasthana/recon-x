@@ -7,7 +7,7 @@ from core.state import SourceDataset, TargetDataset, FilterInfo
 class FR2052aSource(SourceDataset):
     """Source dataset with FR 2052a-specific fields."""
     hqla_positions: List[dict]  # List of HQLA position dicts
-    fwd_start_candidates: List[str]  # List of position_ids
+    fwd_start_candidates: List[dict]  # List of {position_id, product_code, notional_amount_usd}
     unsynced_leis: List[str]
 
 

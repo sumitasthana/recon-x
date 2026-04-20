@@ -1,0 +1,5 @@
+<ingestion><exclude position_id="FWD_START_NULL_EXCL" mode="SILENT" log_level="SILENT" condition="forward_start_date IS NULL" affected_products="FX_FORWARD"/></ingestion>
+<fx rate_source="ECB_PRIOR_DAY"/>
+<hqla last_refresh="2026-04-10" enabled="true"/>
+<counterparty><lei>2138007KXLC2WXJSXT05</lei><lei>549300YEUVVT5NJWXM25</lei></counterparty>
+<output_format/>

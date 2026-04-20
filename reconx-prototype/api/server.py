@@ -128,6 +128,35 @@ def get_report_steps(report_id: str):
     return plugin.steps_metadata()
 
 
+def _resolve_scenario() -> str:
+    """Auto-cycle through scenarios s1-s5 round-robin.
+
+    Persists a counter in data/output/.scenario_counter so each run
+    picks the next scenario automatically.
+    """
+    from core.config import SCENARIOS
+    counter_path = os.path.join("data", "output", ".scenario_counter")
+    try:
+        with open(counter_path) as f:
+            idx = int(f.read().strip())
+    except (FileNotFoundError, ValueError):
+        idx = 0
+    scenario = SCENARIOS[idx % len(SCENARIOS)]
+    with open(counter_path, "w") as f:
+        f.write(str((idx + 1) % len(SCENARIOS)))
+    return scenario
+
+
+# Mapping from scenario_id to AxiomSL XML config file
+SCENARIO_XML = {
+    "s1": "fr2052a_config_s1.xml",
+    "s2": "fr2052a_config_s2.xml",
+    "s3": "fr2052a_config_s3.xml",
+    "s4": "fr2052a_config_s4.xml",
+    "s5": "fr2052a_config_s5.xml",
+}
+
+
 @app.post("/api/recon/run")
 async def run_recon(request: ReconRequest):
     """Run a reconciliation and stream progress via SSE.
@@ -143,16 +172,25 @@ async def run_recon(request: ReconRequest):
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+    # Resolve scenario — "auto" cycles through s1-s5
+    scenario = _resolve_scenario()
+
     config = ReconConfig(
         report_type=request.report_type,
         report_date=request.report_date,
         entity_id=request.entity_id,
+        scenario_id=scenario,
     )
+    # Point to scenario-specific XML config
+    if scenario in SCENARIO_XML:
+        config.client_schema.axiomsl.config_file = SCENARIO_XML[scenario]
 
     async def event_stream():
         log = structlog.get_logger().bind(
-            run="api", report_type=request.report_type, report_date=request.report_date
+            run="api", report_type=request.report_type, report_date=request.report_date,
+            scenario=scenario, xml=config.client_schema.axiomsl.config_file,
         )
+        log.info("api.recon.scenario_resolved", scenario=scenario, xml=config.client_schema.axiomsl.config_file)
 
         try:
             ensure_database(config)
@@ -205,13 +243,22 @@ async def run_recon(request: ReconRequest):
                             }),
                         }
 
-                        # If this is the classify step, emit the report
+                        # If this is the classify step, emit + persist the report
                         if node_name == "classify" and "report" in node_output:
                             report = node_output["report"]
                             yield {
                                 "event": "report",
                                 "data": report.model_dump_json(),
                             }
+                            # Persist to disk so Observatory picks it up
+                            os.makedirs(config.output_path, exist_ok=True)
+                            report_path = os.path.join(
+                                config.output_path,
+                                f"break_report_{config.report_type}_{config.report_date}.json",
+                            )
+                            with open(report_path, "w") as f:
+                                f.write(report.model_dump_json(indent=2))
+                            log.info("api.recon.report_saved", path=report_path)
 
             log.info("api.recon.complete", report_type=request.report_type)
 
@@ -738,14 +785,13 @@ def _scan_reports(output_path: str = "data/output") -> list[dict]:
 
 
 def _seed_demo_history(output_path: str = "data/output"):
-    """Generate synthetic historical reports for demo purposes."""
-    existing = glob.glob(os.path.join(output_path, "break_report_*.json"))
-    if len(existing) >= 10:
-        return  # Already have enough data
+    """Generate synthetic historical reports so Observatory is never empty.
 
+    Seeds business-day reports for the last 20 weekdays ending at today.
+    Skips dates that already have a report (real runs are never overwritten).
+    """
     os.makedirs(output_path, exist_ok=True)
 
-    # Break templates that simulate realistic variance
     break_templates = [
         {
             "break_id": "BRK-001", "category": "FX_RATE_SOURCE_MISMATCH",
@@ -777,8 +823,8 @@ def _seed_demo_history(output_path: str = "data/output"):
         },
     ]
 
-    rng = random.Random(42)  # Deterministic for consistent demo
-    base_date = datetime(2026, 4, 4)
+    rng = random.Random(42)
+    base_date = datetime.now()  # Always seed relative to today
 
     for day_offset in range(-20, 1):
         d = base_date + timedelta(days=day_offset)
@@ -813,8 +859,6 @@ def _seed_demo_history(output_path: str = "data/output"):
             b["notional_impact_usd"] = round(rng.uniform(5e5, 2e8), 2)
             breaks.append(b)
 
-        method = rng.choice(["LLM_CLASSIFIED"] * 4 + ["DETERMINISTIC_FALLBACK"])
-
         sev_summary = {}
         for b in breaks:
             sev_summary[b["severity"]] = sev_summary.get(b["severity"], 0) + 1
@@ -822,11 +866,12 @@ def _seed_demo_history(output_path: str = "data/output"):
 
         report = {
             "report_date": date_str,
+            "report_type": "fr2052a",
             "total_breaks": len(breaks),
             "breaks": breaks,
             "recon_score": round(score, 1),
             "summary": f"Score: {score:.1f}/100 | {len(breaks)} break(s) ({sev_str or 'none'})",
-            "method": method,
+            "method": "LLM_CLASSIFIED",
         }
 
         with open(path, "w") as f:
@@ -932,11 +977,25 @@ def _load_skill_registry():
             tier = "Base"
 
         stat = os.stat(full_path)
+        # Parse description from the SKILL.md YAML frontmatter
+        description = ""
+        try:
+            with open(full_path, encoding="utf-8") as f:
+                content = f.read()
+            if content.startswith("---"):
+                end = content.find("---", 3)
+                if end > 0:
+                    fm = _yaml.safe_load(content[3:end])
+                    description = (fm or {}).get("description", "")
+        except Exception:
+            pass
+
         entries.append({
             "id": name,
             "filename": os.path.basename(full_path),
             "path": full_path,
             "tier": tier,
+            "description": description,
             "size_bytes": stat.st_size,
             "last_modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
             "priority": s.get("priority", 0),
