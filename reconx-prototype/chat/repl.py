@@ -11,8 +11,8 @@ from rich.panel import Panel
 from rich.table import Table
 
 from core.config import ReconConfig
-from chat.agent import build_chat_agent
-from chat.tools import list_tables as list_tables_tool
+from chat.chat_agent import build_chat_agent
+from chat.agents.data_analyst import list_tables as list_tables_tool
 
 
 THREAD_CONFIG = {"configurable": {"thread_id": "reconx-chat-1"}}
@@ -122,7 +122,7 @@ def _handle_slash_command(command: str, console: Console, config: ReconConfig) -
         report_type = parts[1] if len(parts) > 1 else config.report_type
         date = parts[2] if len(parts) > 2 else config.report_date
         console.print(f"[dim]Running {report_type} for {date}...[/dim]")
-        from chat.tools import run_reconciliation as run_tool
+        from chat.agents.pipeline_operator import run_reconciliation as run_tool
         with console.status("[bold green]Running reconciliation..."):
             result = run_tool.invoke({"report_type": report_type, "date": date})
         _render_tool_result(console, "run_reconciliation", result)

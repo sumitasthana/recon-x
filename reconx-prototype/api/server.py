@@ -26,7 +26,7 @@ from skills.builtin.platform_snowflake.scripts.data_scaffold import ensure_datab
 from reports.fr2590.data_scaffold import ensure_fr2590_tables, create_axiomsl_test_data
 
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
-from chat.agent import build_chat_agent, create_checkpointer_context
+from chat.chat_agent import build_chat_agent, create_checkpointer_context
 from llm.client import record_call
 
 

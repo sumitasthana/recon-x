@@ -36,8 +36,6 @@ system_prompt: |
     report type, ask the regulatory expert to check all available reports and
     summarize what was found. The expert knows how to discover which reports exist.
 
-# Context variables are injected at runtime from ReconConfig.
-# Use {variable_name} placeholders — they are rendered via str.format().
 context_template: |
   ## Current Context
   - Default report type: {report_type}

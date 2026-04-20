@@ -29,46 +29,52 @@ The loader is designed to plug directly into LangGraph's create_react_agent::
 """
 
 import os
+import glob
 import yaml
 import structlog
 from typing import Any
 
 log = structlog.get_logger().bind(module="prompt_loader")
 
-DEFAULT_PROMPTS_DIR = os.path.join(os.path.dirname(__file__), "prompts")
+# Scan chat/agents/<name>/prompt.yaml
+DEFAULT_AGENTS_DIR = os.path.join(os.path.dirname(__file__), "agents")
 
 
 class PromptLoader:
-    """Loads and manages YAML agent prompts."""
+    """Loads and manages YAML agent prompts.
 
-    def __init__(self, prompts_dir: str = DEFAULT_PROMPTS_DIR):
-        self.prompts_dir = prompts_dir
+    Scans chat/agents/<agent_name>/prompt.yaml — each agent package
+    owns its own prompt file for locality.
+    """
+
+    def __init__(self, agents_dir: str = DEFAULT_AGENTS_DIR):
+        self.agents_dir = agents_dir
+        # prompts_dir kept as an alias for the update_prompt fallback path
+        self.prompts_dir = agents_dir
         self._cache: dict[str, dict[str, Any]] = {}
         self._load_all()
 
     def _load_all(self):
-        """Scan prompts directory and load all YAML files."""
+        """Scan agents/*/prompt.yaml and load each into the cache."""
         self._cache.clear()
-        if not os.path.isdir(self.prompts_dir):
-            log.warning("prompts_dir_missing", path=self.prompts_dir)
+        if not os.path.isdir(self.agents_dir):
+            log.warning("agents_dir_missing", path=self.agents_dir)
             return
 
-        for fname in os.listdir(self.prompts_dir):
-            if not fname.endswith((".yaml", ".yml")):
-                continue
-            path = os.path.join(self.prompts_dir, fname)
+        pattern = os.path.join(self.agents_dir, "*", "prompt.yaml")
+        for path in glob.glob(pattern):
             try:
                 with open(path, encoding="utf-8") as f:
                     data = yaml.safe_load(f)
                 if not data or "name" not in data or "system_prompt" not in data:
-                    log.warning("prompt_file_invalid", file=fname)
+                    log.warning("prompt_file_invalid", file=path)
                     continue
-                data["_file"] = fname
+                data["_file"] = os.path.relpath(path, self.agents_dir)
                 data["_path"] = path
                 self._cache[data["name"]] = data
                 log.debug("prompt_loaded", name=data["name"], version=data.get("version"))
             except Exception as e:
-                log.error("prompt_load_error", file=fname, error=str(e))
+                log.error("prompt_load_error", file=path, error=str(e))
 
     def reload(self):
         """Reload all prompts from disk (e.g. after an edit)."""
@@ -134,9 +140,11 @@ class PromptLoader:
         if not data or "name" not in data or "system_prompt" not in data:
             raise ValueError("Invalid YAML: must contain 'name' and 'system_prompt'")
 
-        # Use existing file path or create new one
+        # Use existing file path or create new one under agents/<name>/prompt.yaml
         existing = self._cache.get(name, {})
-        path = existing.get("_path", os.path.join(self.prompts_dir, f"{name}.yaml"))
+        default_path = os.path.join(self.agents_dir, name, "prompt.yaml")
+        path = existing.get("_path", default_path)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
 
         with open(path, "w", encoding="utf-8") as f:
             f.write(new_yaml)
