@@ -1,6 +1,32 @@
+from enum import Enum
 from pydantic import BaseModel
 from typing import Optional, List
 from core.config import ReconConfig
+
+
+class BreakCategory(str, Enum):
+    """Namespaced break categories across all report types.
+
+    Values are prefixed with the report type to keep the namespace flat
+    while preventing accidental collisions across plugins. Inheriting from
+    `str` means `break.category == "FR2052A_FX_RATE_SOURCE_MISMATCH"` still
+    works for string comparisons (and JSON serialisation is trivial).
+    """
+
+    # --- FR 2052a ---
+    FR2052A_FX_RATE_SOURCE_MISMATCH = "FR2052A_FX_RATE_SOURCE_MISMATCH"
+    FR2052A_HQLA_REF_STALE = "FR2052A_HQLA_REF_STALE"
+    FR2052A_CPTY_REF_SYNC_LAG = "FR2052A_CPTY_REF_SYNC_LAG"
+    FR2052A_SILENT_EXCLUSION = "FR2052A_SILENT_EXCLUSION"
+
+    # --- FR 2590 ---
+    FR2590_CPTY_HIERARCHY_MISMATCH = "FR2590_CPTY_HIERARCHY_MISMATCH"
+    FR2590_NETTING_SET_DIVERGENCE = "FR2590_NETTING_SET_DIVERGENCE"
+    FR2590_COLLATERAL_ELIGIBILITY_DRIFT = "FR2590_COLLATERAL_ELIGIBILITY_DRIFT"
+    FR2590_EXEMPT_ENTITY_MISCLASS = "FR2590_EXEMPT_ENTITY_MISCLASS"
+    FR2590_EXPOSURE_METHOD_MISMATCH = "FR2590_EXPOSURE_METHOD_MISMATCH"
+    FR2590_HIERARCHY_TABLE_STALE = "FR2590_HIERARCHY_TABLE_STALE"
+    FR2590_SILENT_EXCLUSION = "FR2590_SILENT_EXCLUSION"
 
 
 class SourceDataset(BaseModel):
@@ -57,8 +83,9 @@ class FXDelta(BaseModel):
 class RawDeltas(BaseModel):
     """Computed deltas between source and target datasets.
 
-    This is pure arithmetic on two typed datasets. Works for any
-    source-vs-target pair regardless of report type.
+    Pure arithmetic on two typed datasets — report-agnostic.
+    Report-specific delta fields (e.g. silent_filter_count) are NOT stored
+    here; plugins compute them locally in their classify node.
     """
     report_date: str
 
@@ -74,9 +101,10 @@ class RawDeltas(BaseModel):
     # FX deltas
     fx_deltas: List[FXDelta]
 
-    # Silent filter exposure (invisible from logs)
-    silent_filter_count: int
-    silent_filter_exposure_pct: float  # positions affected by silent filters / source_rows * 100
+    # Silent-filter metrics — populated by plugin-specific helpers from the
+    # classify node (defaults keep the shared compare node report-agnostic).
+    silent_filter_count: int = 0
+    silent_filter_exposure_pct: float = 0.0
 
     # Coverage metrics
     overall_coverage_pct: float  # target_rows / source_rows * 100
@@ -88,7 +116,7 @@ class RawDeltas(BaseModel):
 class Break(BaseModel):
     """Single classified break from reconciliation analysis."""
     break_id: str  # e.g., "BRK-001", "FX-001"
-    category: str  # e.g., "DATA_GAP", "FX_MISMATCH", "HQLA_DEGRADATION", "SILENT_FILTER"
+    category: BreakCategory  # namespaced (see BreakCategory enum)
     severity: str  # "HIGH", "MEDIUM", "LOW"
     table_assignment: Optional[str]  # e.g., "T6" for FX forwards
     description: str

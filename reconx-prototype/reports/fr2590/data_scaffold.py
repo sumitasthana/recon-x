@@ -2,6 +2,11 @@
 
 Creates FR 2590-specific tables and populates them with synthetic data
 that triggers the 4-break taxonomy + 3 config-derived breaks.
+
+Scenario-partitioned: source rows carry a scenario_id column, and there
+are five target JSON variants (fr2590_target_s1.json … s5.json). The API
+server cycles through scenarios per run so each reconciliation produces
+different notional impacts, break counts, and severities.
 """
 
 import os
@@ -11,12 +16,18 @@ import random
 import json
 from datetime import date
 from core.config import ReconConfig
+from reports.fr2590.scenarios import (
+    SCENARIOS,
+    SCENARIO_SOURCE_CONFIG,
+    SCENARIO_TARGET_CONFIG,
+)
 
 log = structlog.get_logger()
 
 TABLE_DDLS = [
     """CREATE TABLE IF NOT EXISTS FACT_SCCL_EXPOSURE (
         exposure_id INTEGER PRIMARY KEY, report_date DATE NOT NULL,
+        scenario_id VARCHAR(8) NOT NULL DEFAULT 's3',
         counterparty_lei VARCHAR(20) NOT NULL, counterparty_name VARCHAR(200),
         schedule_code VARCHAR(10) NOT NULL, exposure_category VARCHAR(50),
         gross_credit_exposure_usd DECIMAL(38,2), net_credit_exposure_usd DECIMAL(38,2),
@@ -92,30 +103,55 @@ NETTING_SETS = [
     "NS-ISDA-BARC-001", "NS-ISDA-BNP-001", "NS-ISDA-HSBC-001",
 ]
 
+# Scenario-specific source & target configurations live in
+# reports/fr2590/scenarios.py (imported above). The scaffolder consumes
+# those dicts to generate per-scenario data.
+
 
 def ensure_fr2590_tables(config: ReconConfig):
-    """Create FR 2590 tables if they don't exist and populate with synthetic data."""
+    """Create FR 2590 tables if they don't exist and populate with synthetic data.
+
+    Auto-migrates from the pre-scenario schema: if FACT_SCCL_EXPOSURE exists
+    but lacks the scenario_id column, the table (and its dependent view) is
+    dropped and rebuilt with the new schema.
+    """
     log.info("fr2590_scaffold.start", db_path=config.db_path)
 
     conn = duckdb.connect(config.db_path)
     try:
-        # Check if tables already exist
         existing = conn.execute("""
             SELECT table_name FROM information_schema.tables
             WHERE table_schema = 'main' AND table_name = 'FACT_SCCL_EXPOSURE'
         """).fetchone()
 
         if existing:
-            log.info("fr2590_scaffold.exists")
-            return
+            cols = [r[0] for r in conn.execute(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_schema='main' AND table_name='FACT_SCCL_EXPOSURE'"
+            ).fetchall()]
+            if "scenario_id" in cols:
+                log.info("fr2590_scaffold.exists")
+                return
+            # Pre-scenario schema — migrate: drop all FR 2590 tables (dim +
+            # fact) so the re-population below hits empty tables and PK
+            # constraints don't collide with legacy rows.
+            log.info("fr2590_scaffold.migrating", reason="scenario_id column missing")
+            conn.execute("DROP VIEW IF EXISTS V_SCCL_EXPOSURE_SCOPE")
+            for t in [
+                "FACT_SCCL_EXPOSURE",
+                "DIM_CPTY_HIERARCHY",
+                "DIM_NETTING_SET",
+                "DIM_COLLATERAL_SCHEDULE",
+                "DIM_EXEMPTION_STATUS",
+                "DIM_TIER1_CAPITAL",
+            ]:
+                conn.execute(f"DROP TABLE IF EXISTS {t}")
 
-        # Create tables
         for ddl in TABLE_DDLS:
             conn.execute(ddl)
 
         log.info("fr2590_scaffold.tables_created")
 
-        # Populate data
         _populate_exposures(conn, config.report_date)
         _populate_hierarchy(conn)
         _populate_netting_sets(conn, config.report_date)
@@ -123,7 +159,6 @@ def ensure_fr2590_tables(config: ReconConfig):
         _populate_exemptions(conn)
         _populate_capital(conn)
 
-        # Create views after all tables are populated
         conn.execute("""
             CREATE OR REPLACE VIEW V_SCCL_EXPOSURE_SCOPE AS
             SELECT * FROM FACT_SCCL_EXPOSURE
@@ -136,37 +171,48 @@ def ensure_fr2590_tables(config: ReconConfig):
 
 
 def _populate_exposures(conn, report_date):
-    """Generate ~350 exposure rows across 50 counterparties and 5 schedules."""
-    random.seed(42)
+    """Generate scenario-partitioned exposure rows.
+
+    For each scenario, generate a full set of rows with scenario-specific
+    random seed and gross-exposure multipliers. Schedule-specific `g4_bias`
+    further scales G-4 (derivatives) exposures so the notional_delta vs
+    the per-scenario target JSON varies meaningfully.
+    """
     exposure_id = 1
     rows = []
 
-    for lei, name, parent_lei, is_non_exempt in COUNTERPARTIES:
-        # Each counterparty gets exposures across 2-5 schedules
-        n_schedules = random.randint(2, 5)
-        for schedule in random.sample(SCHEDULES, n_schedules):
-            gross = round(random.uniform(50_000_000, 2_000_000_000), 2)
-            net = round(gross * random.uniform(0.4, 0.9), 2)
-            ns_id = random.choice(NETTING_SETS) if schedule == "G-4" else None
-            coll_type = random.choice([c[0] for c in COLLATERAL_TYPES]) if random.random() > 0.3 else None
-            coll_val = round(gross * random.uniform(0.1, 0.5), 2) if coll_type else None
+    for scenario_id, cfg in SCENARIO_SOURCE_CONFIG.items():
+        scenario_random = random.Random(cfg["seed"])
 
-            rows.append((
-                exposure_id, report_date, lei, name, schedule,
-                f"category_{random.randint(1,7)}", gross, net,
-                ns_id, coll_type, coll_val, "SA-CCR", "PASS"
-            ))
-            exposure_id += 1
+        for lei, name, parent_lei, is_non_exempt in COUNTERPARTIES:
+            n_schedules = scenario_random.randint(2, 5)
+            for schedule in scenario_random.sample(SCHEDULES, n_schedules):
+                base = scenario_random.uniform(50_000_000, 2_000_000_000)
+                mult = cfg["mult"]
+                if schedule == "G-4":
+                    mult *= cfg["g4_bias"]
+                gross = round(base * mult, 2)
+                net = round(gross * scenario_random.uniform(0.4, 0.9), 2)
+                ns_id = scenario_random.choice(NETTING_SETS) if schedule == "G-4" else None
+                coll_type = scenario_random.choice([c[0] for c in COLLATERAL_TYPES]) if scenario_random.random() > 0.3 else None
+                coll_val = round(gross * scenario_random.uniform(0.1, 0.5), 2) if coll_type else None
+
+                rows.append((
+                    exposure_id, report_date, scenario_id, lei, name, schedule,
+                    f"category_{scenario_random.randint(1,7)}", gross, net,
+                    ns_id, coll_type, coll_val, "SA-CCR", "PASS"
+                ))
+                exposure_id += 1
 
     conn.executemany(
         """INSERT INTO FACT_SCCL_EXPOSURE
-           (exposure_id, report_date, counterparty_lei, counterparty_name, schedule_code,
+           (exposure_id, report_date, scenario_id, counterparty_lei, counterparty_name, schedule_code,
             exposure_category, gross_credit_exposure_usd, net_credit_exposure_usd,
             netting_set_id, collateral_type, collateral_value_usd, exposure_method, data_quality_flag)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         rows
     )
-    log.info("fr2590_scaffold.exposures", rows=len(rows))
+    log.info("fr2590_scaffold.exposures", rows=len(rows), scenarios=len(SCENARIO_SOURCE_CONFIG))
 
 
 def _populate_hierarchy(conn):
@@ -256,10 +302,15 @@ def _populate_capital(conn):
 
 
 def create_axiomsl_test_data(config: ReconConfig):
-    """Create synthetic AxiomSL log and output files for FR 2590."""
+    """Create synthetic AxiomSL log and per-scenario target JSONs for FR 2590.
+
+    One log file and one XML config (shared across scenarios — the breaks
+    are driven by the target JSON + source DuckDB, not by XML variation).
+    Target JSONs: five variants, one per scenario.
+    """
     ax_path = config.axiomsl_config_path
 
-    # Processing log
+    # Processing log (shared)
     log_path = os.path.join(ax_path, config.client_schema.fr2590.axiomsl.log_file)
     if not os.path.exists(log_path):
         with open(log_path, 'w') as f:
@@ -283,29 +334,42 @@ def create_axiomsl_test_data(config: ReconConfig):
 """)
         log.info("fr2590_scaffold.log_created", path=log_path)
 
-    # Target output JSON
-    output_path = os.path.join(ax_path, config.client_schema.fr2590.axiomsl.output_file)
-    if not os.path.exists(output_path):
-        random.seed(42)
+    # Per-scenario target JSONs
+    for sid in SCENARIOS:
+        tgt = SCENARIO_TARGET_CONFIG[sid]
+        fname = f"fr2590_target_{sid}.json"
+        fpath = os.path.join(ax_path, fname)
+        if os.path.exists(fpath):
+            continue
         target_data = {
-            "table_counts": {"G-1": 48, "G-2": 32, "G-3": 28, "G-4": 45, "G-5": 22, "M-1": 40, "M-2": 35},
-            "table_notionals": {
-                "G-1": 45_000_000_000.0,
-                "G-2": 18_000_000_000.0,
-                "G-3": 12_000_000_000.0,
-                "G-4": 38_000_000_000.0,
-                "G-5": 8_000_000_000.0,
-                "M-1": 25_000_000_000.0,
-                "M-2": 15_000_000_000.0,
-            },
+            "table_counts": tgt["table_counts"],
+            "table_notionals": tgt["table_notionals"],
             "hqla_downgrades": 0,
-            "total_counterparties": 48,
-            "netting_set_ids": NETTING_SETS,  # missing NS-ISDA-ORPHAN-001
-            "netting_divergences": 1,
-            "collateral_drifts": 1,
-            "exemption_misclassifications": 1,
+            "total_counterparties": tgt["total_counterparties"],
+            "netting_set_ids": tgt["netting_set_ids"],
+            "netting_divergences": tgt["netting_divergences"],
+            "collateral_drifts": tgt["collateral_drifts"],
+            "exemption_misclassifications": tgt["exemption_misclassifications"],
             "limit_breaches": [],
         }
-        with open(output_path, 'w') as f:
+        with open(fpath, 'w') as f:
             json.dump(target_data, f, indent=2)
-        log.info("fr2590_scaffold.output_created", path=output_path)
+        log.info("fr2590_scaffold.target_created", scenario=sid, path=fpath)
+
+    # Backwards-compat: keep default fr2590_target.json pointing at the s3
+    # payload for any callers that haven't set a scenario-specific filename.
+    default_path = os.path.join(ax_path, config.client_schema.fr2590.axiomsl.output_file)
+    if not os.path.exists(default_path):
+        with open(default_path, 'w') as f:
+            json.dump({
+                "table_counts": SCENARIO_TARGET_CONFIG["s3"]["table_counts"],
+                "table_notionals": SCENARIO_TARGET_CONFIG["s3"]["table_notionals"],
+                "hqla_downgrades": 0,
+                "total_counterparties": SCENARIO_TARGET_CONFIG["s3"]["total_counterparties"],
+                "netting_set_ids": SCENARIO_TARGET_CONFIG["s3"]["netting_set_ids"],
+                "netting_divergences": SCENARIO_TARGET_CONFIG["s3"]["netting_divergences"],
+                "collateral_drifts": SCENARIO_TARGET_CONFIG["s3"]["collateral_drifts"],
+                "exemption_misclassifications": SCENARIO_TARGET_CONFIG["s3"]["exemption_misclassifications"],
+                "limit_breaches": [],
+            }, f, indent=2)
+        log.info("fr2590_scaffold.default_target_created", path=default_path)

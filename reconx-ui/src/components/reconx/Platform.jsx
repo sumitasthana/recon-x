@@ -17,7 +17,7 @@ const PLATFORM_TABS = [
 /* ── Agent data ─────────────────────────────────────── */
 const AGENTS = [
   {
-    id: 'supervisor', name: 'Supervisor Agent', abbr: 'SV',
+    id: 'supervisor', name: 'Supervisor Agent', abbr: 'SV', tier: 'chat',
     desc: 'Routes user requests to the correct specialist agent (Sonnet)',
     model: 'Claude 3.5 Sonnet', runs: 142, success: 99.3, latency: '1.2s', cost: '$0.41',
     recentRuns: [
@@ -27,7 +27,7 @@ const AGENTS = [
     ],
   },
   {
-    id: 'data', name: 'Data Analyst', abbr: 'DA',
+    id: 'data', name: 'Data Analyst', abbr: 'DA', tier: 'chat',
     desc: 'SQL queries, table exploration, source data analysis (Haiku)',
     model: 'Claude 3 Haiku', runs: 89, success: 100, latency: '0.8s', cost: '$0.12',
     recentRuns: [
@@ -36,7 +36,7 @@ const AGENTS = [
     ],
   },
   {
-    id: 'regulatory', name: 'Regulatory Expert', abbr: 'RE',
+    id: 'regulatory', name: 'Regulatory Expert', abbr: 'RE', tier: 'chat',
     desc: 'Break analysis, report inspection, domain knowledge via RAG (Haiku)',
     model: 'Claude 3 Haiku', runs: 156, success: 98.7, latency: '1.4s', cost: '$0.28',
     recentRuns: [
@@ -46,12 +46,29 @@ const AGENTS = [
     ],
   },
   {
-    id: 'pipeline', name: 'Pipeline Operator', abbr: 'PO',
+    id: 'pipeline', name: 'Pipeline Operator', abbr: 'PO', tier: 'chat',
     desc: 'Runs reconciliation pipelines on demand (Haiku)',
     model: 'Claude 3 Haiku', runs: 24, success: 95.8, latency: '3.2s', cost: '$0.84',
     recentRuns: [
       { time: '08:22 AM', summary: 'FR 2052a recon for 2026-04-04 — score 45, 3 breaks', status: 'pass', latency: '4.1s' },
       { time: '07:00 AM', summary: 'Timeout on large batch — retried and succeeded', status: 'warn', latency: '30s' },
+    ],
+  },
+  {
+    id: 'fr2052a_classifier', name: 'FR 2052a Classifier', abbr: 'C52', tier: 'classifier',
+    desc: 'Break-classification prompt invoked by the FR 2052a pipeline classify step (Haiku; deterministic fallback currently active)',
+    model: 'Claude 3 Haiku', runs: 18, success: 100, latency: '0.6s', cost: '$0.03',
+    recentRuns: [
+      { time: '08:22 AM', summary: 'Classified 3 breaks for 2026-04-20 run — deterministic fallback', status: 'pass', latency: '0.5s' },
+      { time: '07:00 AM', summary: 'Classified 2 breaks for 2026-04-17 run — deterministic fallback', status: 'pass', latency: '0.6s' },
+    ],
+  },
+  {
+    id: 'fr2590_classifier', name: 'FR 2590 Classifier', abbr: 'C59', tier: 'classifier',
+    desc: 'Break-classification prompt for FR 2590 (SCCL) pipeline classify step (Haiku; deterministic fallback currently active)',
+    model: 'Claude 3 Haiku', runs: 6, success: 100, latency: '0.7s', cost: '$0.01',
+    recentRuns: [
+      { time: '08:05 AM', summary: 'Classified 2 SCCL breaks — deterministic fallback', status: 'pass', latency: '0.7s' },
     ],
   },
 ];
@@ -86,10 +103,10 @@ function AgentObservatory() {
   return (
     <>
       <div className="grid grid-cols-4 gap-3 mb-5">
-        <MetricCard label="Total runs today" value={totalRuns} sub="across 4 agents" />
+        <MetricCard label="Total runs today" value={totalRuns} sub={`across ${AGENTS.length} agents`} />
         <MetricCard label="Avg success rate" value={`${avgSuccess}%`} color="#1a7f4b" />
         <MetricCard label="Est. cost today" value={`$${totalCost}`} sub="Bedrock usage" />
-        <MetricCard label="Architecture" value="Multi-agent" sub="Supervisor + 3 specialists" />
+        <MetricCard label="Architecture" value="Multi-agent" sub={`Supervisor + ${AGENTS.filter(a => a.tier === 'chat').length - 1} specialists + ${AGENTS.filter(a => a.tier === 'classifier').length} classifiers`} />
       </div>
 
       {AGENTS.map((agent) => {
@@ -103,7 +120,17 @@ function AgentObservatory() {
                 {agent.abbr}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-[13px] font-medium text-g-900">{agent.name}</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[13px] font-medium text-g-900">{agent.name}</span>
+                  {agent.tier === 'classifier' && (
+                    <span
+                      className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                      style={{ background: TIER_STYLE.Client.bg, color: TIER_STYLE.Client.fg }}
+                    >
+                      Classifier
+                    </span>
+                  )}
+                </div>
                 <div className="text-[11px] text-g-400 font-light">{agent.desc}</div>
               </div>
               <span className="text-[11px] text-g-400 flex-shrink-0">⌄</span>

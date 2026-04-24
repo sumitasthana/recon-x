@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(/c/ProgramData/anaconda3/python.exe -m uvicorn api.server:app --host 0.0.0.0 --port 8017)",
+      "Bash(find ./tests -name \"*.py\" -type f -exec wc -l {} +)",
+      "Bash(PYTHONIOENCODING=utf-8 python -m pytest tests/integration/test_end_to_end.py --tb=short -q)",
+      "Bash(python -c ' *)"
+    ]
+  }
+}

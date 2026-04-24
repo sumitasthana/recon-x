@@ -16,8 +16,47 @@ Additional config-derived breaks (from fr2590_axiomsl_config_files.xml):
 import structlog
 import json
 import os
-from core.state import ReconState, Break, BreakReport
+from core.state import ReconState, Break, BreakReport, BreakCategory
 from llm.client import get_llm
+from reports.fr2590.scenarios import SCENARIO_BREAK_GATE
+
+
+def _populate_silent_filter_metrics(state: ReconState) -> None:
+    """FR 2590-specific post-compare enrichment (mirrors FR 2052a helper).
+
+    Reads target.silent_filters (FR 2590 target may carry silent filters
+    parsed from the AxiomSL XML config) and writes the counts into the
+    RawDeltas, which the shared compare node leaves at default 0.
+    """
+    t = state.target
+    d = state.deltas
+    if t is None or d is None:
+        return
+    filters = getattr(t, 'silent_filters', [])
+    d.silent_filter_count = len(filters) if filters else 0
+    source_rows = d.total_source_rows
+    if source_rows > 0:
+        d.silent_filter_exposure_pct = t.total_excluded / source_rows * 100
+
+
+def _coerce_category(raw, default: BreakCategory) -> BreakCategory:
+    """Best-effort coercion of LLM-emitted category string to the enum.
+
+    Accepts both namespaced ('FR2590_CPTY_HIERARCHY_MISMATCH') and bare
+    ('CPTY_HIERARCHY_MISMATCH') forms.
+    """
+    if raw is None:
+        return default
+    raw_str = str(raw).strip().upper()
+    try:
+        return BreakCategory(raw_str)
+    except ValueError:
+        pass
+    prefixed = f"FR2590_{raw_str}"
+    try:
+        return BreakCategory(prefixed)
+    except ValueError:
+        return default
 
 
 def classify_node(state: ReconState) -> dict:
@@ -36,6 +75,8 @@ def classify_node(state: ReconState) -> dict:
 
     if not state.deltas or not state.source or not state.target:
         raise ValueError("Deltas, source, and target must be present in state")
+
+    _populate_silent_filter_metrics(state)
 
     # 1. Load FR 2590 domain skill
     skill_path = os.path.join(os.path.dirname(__file__), "skill", "SKILL.md")
@@ -203,71 +244,24 @@ def _build_classification_prompt(state: ReconState, system_context: str) -> str:
                 "coverage_pct": round(td.coverage_pct, 2),
             })
 
-    prompt = f"""You are an expert in FR 2590 (Single-Counterparty Credit Limits) regulatory reconciliation.
+    from chat.prompt_loader import get_prompt_loader
+    template = get_prompt_loader().get_prompt("fr2590_classifier")
 
-Use the following domain knowledge to classify breaks:
-
-{system_context}
-
----
-
-RECONCILIATION DATA:
-
-Key Metrics:
-{json.dumps(key_fields, indent=2)}
-
-Schedule-Level Issues (row/notional mismatches):
-{json.dumps(table_issues, indent=2)}
-
-Counterparty Hierarchy Differences ({len(hierarchy_diffs)} mismatches):
-{json.dumps(hierarchy_diffs[:10], indent=2)}
-
-Netting Set Differences:
-  In source only: {netting_only_source}
-  In target only: {netting_only_target}
-
-Collateral Haircut Differences ({len(haircut_diffs)} divergences):
-{json.dumps(haircut_diffs, indent=2)}
-
-Exemption Status Differences ({len(exemption_diffs)} mismatches):
-{json.dumps(exemption_diffs[:10], indent=2)}
-
-Limit Breaches Identified: {json.dumps(t_limit_breaches[:5], indent=2)}
-
-Silent Filters Applied: {d.silent_filter_count}
-
----
-
-TASK:
-
-Based on the data above, classify all reconciliation breaks.
-
-For each break, provide (STANDARDIZED TAXONOMY):
-- break_id: One of [BRK-001, BRK-002, BRK-003, BRK-004] or config-derived [BRK-S01, BRK-S02, BRK-S04]
-  - BRK-001: CPTY_HIERARCHY_MISMATCH (source/target disagree on counterparty-to-parent mappings)
-  - BRK-002: NETTING_SET_DIVERGENCE (derivatives netting set boundaries differ)
-  - BRK-003: COLLATERAL_ELIGIBILITY_DRIFT (collateral haircuts/eligibility diverge >5%)
-  - BRK-004: EXEMPT_ENTITY_MISCLASS (exempt vs non-exempt status mismatch)
-  - BRK-S01: EXPOSURE_METHOD_MISMATCH (CEM vs SA-CCR methodology difference)
-  - BRK-S02: HIERARCHY_TABLE_STALE (counterparty hierarchy reference not refreshed)
-  - BRK-S04: SILENT_EXCLUSION (positions silently excluded by SILENT ingestion filter)
-- category: Use the break category name (e.g., "CPTY_HIERARCHY_MISMATCH")
-- severity: One of [CRITICAL, HIGH, MEDIUM, LOW]
-- table_assignment: Schedule code (G-1..G-5, M-1, M-2, A-1, A-2) or null
-- description: Human-readable description
-- source_count: Number of affected items in source
-- target_count: Number of affected items in target
-- notional_impact_usd: Estimated USD impact (thousands) if calculable
-- root_cause: Explanation of why this break occurred
-- recommended_action: Specific remediation steps
-
-Return ONLY a JSON object with a "breaks" array. No markdown, no explanation.
-
-{{
-  "breaks": [...]
-}}"""
-
-    return prompt
+    return template.format(
+        system_context=system_context,
+        key_fields_json=json.dumps(key_fields, indent=2),
+        table_issues_json=json.dumps(table_issues, indent=2),
+        hierarchy_diff_count=len(hierarchy_diffs),
+        hierarchy_diffs_json=json.dumps(hierarchy_diffs[:10], indent=2),
+        netting_only_source=netting_only_source,
+        netting_only_target=netting_only_target,
+        haircut_diff_count=len(haircut_diffs),
+        haircut_diffs_json=json.dumps(haircut_diffs, indent=2),
+        exemption_diff_count=len(exemption_diffs),
+        exemption_diffs_json=json.dumps(exemption_diffs[:10], indent=2),
+        t_limit_breaches_json=json.dumps(t_limit_breaches[:5], indent=2),
+        silent_filter_count=d.silent_filter_count,
+    )
 
 
 def _classify_with_fallback(state: ReconState, prompt: str, log) -> tuple:
@@ -297,7 +291,10 @@ def _classify_with_fallback(state: ReconState, prompt: str, log) -> tuple:
             for b in data.get("breaks", []):
                 breaks.append(Break(
                     break_id=b.get("break_id", "UNKNOWN"),
-                    category=b.get("category", "CPTY_HIERARCHY_MISMATCH"),
+                    category=_coerce_category(
+                        b.get("category"),
+                        BreakCategory.FR2590_CPTY_HIERARCHY_MISMATCH,
+                    ),
                     severity=b.get("severity", "MEDIUM"),
                     table_assignment=b.get("table_assignment"),
                     description=b.get("description", ""),
@@ -318,8 +315,16 @@ def _classify_with_fallback(state: ReconState, prompt: str, log) -> tuple:
         method = "DETERMINISTIC_FALLBACK"
         breaks = _deterministic_classification(state)
 
+    # Apply per-scenario break gate uniformly (both LLM and deterministic paths)
+    # so s1 is genuinely cleaner than s3/s4 regardless of classifier method.
+    scenario_id = getattr(state.config, "scenario_id", None)
+    skip = SCENARIO_BREAK_GATE.get(scenario_id, set())
+    if skip:
+        breaks = [b for b in breaks if b.break_id not in skip]
+
     log.info("classify.method", method=method, breaks_count=len(breaks))
     return breaks, method
+
 
 
 def _deterministic_classification(state: ReconState) -> list:
@@ -328,6 +333,8 @@ def _deterministic_classification(state: ReconState) -> list:
     Applies rule-based checks when LLM parsing fails. Also detects
     config-derived breaks (BRK-S01, BRK-S02, BRK-S04) from the
     AxiomSL XML config file analysis.
+
+    Breaks are filtered by the active scenario's gate (see SCENARIO_BREAK_GATE).
     """
     breaks = []
     s = state.source
@@ -357,7 +364,7 @@ def _deterministic_classification(state: ReconState) -> list:
         total_diffs = max(hierarchy_diffs, t_hierarchy_mismatches)
         breaks.append(Break(
             break_id="BRK-001",
-            category="CPTY_HIERARCHY_MISMATCH",
+            category=BreakCategory.FR2590_CPTY_HIERARCHY_MISMATCH,
             severity="HIGH",
             table_assignment="A-1",
             description=f"{total_diffs} counterparty-to-parent mappings differ between source and target. Aggregate exposure groupings for economic interdependence and control relationship tests diverge.",
@@ -382,7 +389,7 @@ def _deterministic_classification(state: ReconState) -> list:
 
         breaks.append(Break(
             break_id="BRK-002",
-            category="NETTING_SET_DIVERGENCE",
+            category=BreakCategory.FR2590_NETTING_SET_DIVERGENCE,
             severity="HIGH" if (g4_impact and g4_impact > 50000) else "MEDIUM",
             table_assignment="G-4",
             description=f"{total_divergent} netting set boundary differences. {len(netting_only_source)} sets in source only, {len(netting_only_target)} in target only. Gross-to-net reduction diverges.",
@@ -404,7 +411,7 @@ def _deterministic_classification(state: ReconState) -> list:
     if haircut_divergences:
         breaks.append(Break(
             break_id="BRK-003",
-            category="COLLATERAL_ELIGIBILITY_DRIFT",
+            category=BreakCategory.FR2590_COLLATERAL_ELIGIBILITY_DRIFT,
             severity="MEDIUM",
             table_assignment="M-1",
             description=f"Collateral haircuts diverge >5% on {len(haircut_divergences)} asset classes: {', '.join(haircut_divergences[:5])}. Credit risk mitigation amounts differ.",
@@ -426,7 +433,7 @@ def _deterministic_classification(state: ReconState) -> list:
     if exemption_mismatches:
         breaks.append(Break(
             break_id="BRK-004",
-            category="EXEMPT_ENTITY_MISCLASS",
+            category=BreakCategory.FR2590_EXEMPT_ENTITY_MISCLASS,
             severity="HIGH",
             table_assignment="G-1",
             description=f"{len(exemption_mismatches)} counterparties have mismatched exemption status between source and target. Exempt exposures excluded from limit calculation may be incorrect.",
@@ -452,7 +459,7 @@ def _deterministic_classification(state: ReconState) -> list:
     if g4_delta and abs(g4_delta.notional_delta) > 0:
         breaks.append(Break(
             break_id="BRK-S01",
-            category="EXPOSURE_METHOD_MISMATCH",
+            category=BreakCategory.FR2590_EXPOSURE_METHOD_MISMATCH,
             severity="HIGH",
             table_assignment="G-4",
             description=f"Derivative exposure calculation method mismatch. AxiomSL config reverted to CEM (v5.1.0) while source pipeline uses SA-CCR. G-4 notional delta: ${abs(g4_delta.notional_delta):,.0f}K.",
@@ -464,13 +471,13 @@ def _deterministic_classification(state: ReconState) -> list:
         ))
 
     # BRK-S02: Hierarchy Table Stale (from XML CounterpartyHierarchy.LastRefreshDate)
-    hierarchy_stale_days = getattr(t, '_hierarchy_stale_days', 0)
+    hierarchy_stale_days = getattr(t, 'hierarchy_stale_days', 0)
     # If we detected hierarchy_mismatches from XML parsing > 0, it's already captured in BRK-001
     # BRK-S02 specifically flags the staleness even if individual mappings haven't been compared
     if t_hierarchy_mismatches > 0 and not any(b.break_id == 'BRK-001' for b in breaks):
         breaks.append(Break(
             break_id="BRK-S02",
-            category="HIERARCHY_TABLE_STALE",
+            category=BreakCategory.FR2590_HIERARCHY_TABLE_STALE,
             severity="HIGH",
             table_assignment="A-1",
             description=f"Counterparty hierarchy table in AxiomSL has {t_hierarchy_mismatches} known missing/stale entities. Table not refreshed since last scheduled date.",
@@ -489,7 +496,7 @@ def _deterministic_classification(state: ReconState) -> list:
         filter_ids = [f.filter_id for f in t_silent_filters]
         breaks.append(Break(
             break_id="BRK-S04",
-            category="SILENT_EXCLUSION",
+            category=BreakCategory.FR2590_SILENT_EXCLUSION,
             severity="HIGH",
             table_assignment="G-5",
             description=f"Silent ingestion filter(s) {', '.join(filter_ids)} exclude exposures with zero audit trail. {silent_count} filter rule(s) with LogLevel=SILENT detected. Securitization look-through exposures with null beneficial owner silently dropped instead of being reported as unknown counterparty in G-5.",
@@ -528,28 +535,34 @@ def _calculate_recon_score(deltas, breaks: list) -> float:
                 base_score -= 15.0
                 break
 
-    # Netting/collateral mismatch
-    netting_breaks = sum(1 for b in breaks if b.category in ('NETTING_SET_DIVERGENCE', 'COLLATERAL_ELIGIBILITY_DRIFT'))
+    # Netting / collateral mismatch
+    netting_breaks = sum(1 for b in breaks if b.category in (
+        BreakCategory.FR2590_NETTING_SET_DIVERGENCE,
+        BreakCategory.FR2590_COLLATERAL_ELIGIBILITY_DRIFT,
+    ))
     if netting_breaks > 0:
         base_score -= 20.0
 
-    # Aggregation group mismatch
-    hierarchy_breaks = sum(1 for b in breaks if b.category in ('CPTY_HIERARCHY_MISMATCH', 'HIERARCHY_TABLE_STALE'))
+    # Aggregation-group mismatch
+    hierarchy_breaks = sum(1 for b in breaks if b.category in (
+        BreakCategory.FR2590_CPTY_HIERARCHY_MISMATCH,
+        BreakCategory.FR2590_HIERARCHY_TABLE_STALE,
+    ))
     if hierarchy_breaks > 0:
         base_score -= 25.0
 
-    # Silent exclusion
-    silent_breaks = sum(1 for b in breaks if b.category == 'SILENT_EXCLUSION')
+    # Silent exclusion (FR 2590 variant)
+    silent_breaks = sum(1 for b in breaks if b.category == BreakCategory.FR2590_SILENT_EXCLUSION)
     if silent_breaks > 0:
         base_score -= 25.0
 
     # Exposure method mismatch
-    method_breaks = sum(1 for b in breaks if b.category == 'EXPOSURE_METHOD_MISMATCH')
+    method_breaks = sum(1 for b in breaks if b.category == BreakCategory.FR2590_EXPOSURE_METHOD_MISMATCH)
     if method_breaks > 0:
         base_score -= 15.0
 
     # Exemption misclassification
-    exempt_breaks = sum(1 for b in breaks if b.category == 'EXEMPT_ENTITY_MISCLASS')
+    exempt_breaks = sum(1 for b in breaks if b.category == BreakCategory.FR2590_EXEMPT_ENTITY_MISCLASS)
     base_score -= 5.0 * exempt_breaks
 
     # Limit breach discrepancy
@@ -562,7 +575,8 @@ def _calculate_recon_score(deltas, breaks: list) -> float:
 def _build_summary(breaks: list, recon_score: float, deltas) -> str:
     """Build executive summary of SCCL reconciliation."""
     high_severity = sum(1 for b in breaks if b.severity in ("HIGH", "CRITICAL"))
-    categories = set(b.category for b in breaks)
+    # Use .value so substring checks like 'HIERARCHY' in c still work.
+    categories = set(b.category.value for b in breaks)
 
     summary_parts = [
         f"Reconciliation Score: {recon_score:.1f}/100",

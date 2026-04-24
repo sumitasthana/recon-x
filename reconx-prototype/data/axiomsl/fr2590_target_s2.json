@@ -1,0 +1,39 @@
+{
+  "table_counts": {
+    "G-1": 47,
+    "G-2": 31,
+    "G-3": 27,
+    "G-4": 44,
+    "G-5": 21,
+    "M-1": 39,
+    "M-2": 34
+  },
+  "table_notionals": {
+    "G-1": 40000000000.0,
+    "G-2": 16000000000.0,
+    "G-3": 11000000000.0,
+    "G-4": 33000000000.0,
+    "G-5": 7500000000.0,
+    "M-1": 23000000000.0,
+    "M-2": 14000000000.0
+  },
+  "hqla_downgrades": 0,
+  "total_counterparties": 14,
+  "netting_set_ids": [
+    "NS-ISDA-JPM-001",
+    "NS-ISDA-GS-001",
+    "NS-ISDA-BAC-001",
+    "NS-ISDA-WF-001",
+    "NS-ISDA-CITI-001",
+    "NS-ISDA-MS-001",
+    "NS-ISDA-DB-001",
+    "NS-ISDA-UBS-001",
+    "NS-ISDA-CS-001",
+    "NS-ISDA-BARC-001",
+    "NS-ISDA-BNP-001"
+  ],
+  "netting_divergences": 1,
+  "collateral_drifts": 0,
+  "exemption_misclassifications": 0,
+  "limit_breaches": []
+}

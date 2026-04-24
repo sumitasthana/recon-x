@@ -14,6 +14,20 @@ from core.state import ReconState
 from reports.fr2590.state import FR2590Source
 
 
+def _has_column(conn, view: str, column: str) -> bool:
+    """Safe check for whether a view has a specific column (supports DBs without scenario_id)."""
+    try:
+        return column in {
+            r[0] for r in conn.execute(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_schema='main' AND table_name=?",
+                [view.upper()]
+            ).fetchall()
+        }
+    except Exception:
+        return False
+
+
 def extract_source_node(state: ReconState) -> dict:
     """Extract source data for FR 2590 SCCL reconciliation.
 
@@ -27,31 +41,37 @@ def extract_source_node(state: ReconState) -> dict:
     - sf.capital_table: Tier 1 capital denominator (default: DIM_TIER1_CAPITAL)
     """
     log = structlog.get_logger().bind(node="extract_source", report_type="fr2590",
-                                      report_date=state.config.report_date)
+                                      report_date=state.config.report_date,
+                                      scenario=state.config.scenario_id)
     log.info("node.start")
 
     # Shorthand — ZERO hardcoded table names below
     sf = state.config.client_schema.fr2590.snowflake
+    sid = state.config.scenario_id
 
     conn = duckdb.connect(state.config.db_path, read_only=True)
     try:
+        # Scenario filter — only apply if the column exists (handles legacy DBs)
+        has_scenario = _has_column(conn, sf.exposure_view, "scenario_id")
+        scenario_filter = f"AND scenario_id = '{sid}'" if has_scenario and sid and sid != "auto" else ""
+
         # 1. Total rows in exposure scope
         total = conn.execute(
-            f"SELECT COUNT(*) FROM {sf.exposure_view} WHERE report_date = ?",
+            f"SELECT COUNT(*) FROM {sf.exposure_view} WHERE report_date = ? {scenario_filter}",
             [state.config.report_date]
         ).fetchone()[0]
         log.info("extract.total_rows", total_rows=total)
 
         # 2. Per-schedule row counts (G-1..G-5, M-1, M-2)
         schedule_counts = dict(conn.execute(
-            f"SELECT schedule_code, COUNT(*) FROM {sf.exposure_view} WHERE report_date = ? GROUP BY 1",
+            f"SELECT schedule_code, COUNT(*) FROM {sf.exposure_view} WHERE report_date = ? {scenario_filter} GROUP BY 1",
             [state.config.report_date]
         ).fetchall())
         log.info("extract.schedule_counts", schedule_counts=schedule_counts)
 
         # 3. Per-schedule gross exposure (table_notionals equivalent)
         schedule_exposures = dict(conn.execute(
-            f"SELECT schedule_code, SUM(gross_credit_exposure_usd) FROM {sf.exposure_view} WHERE report_date = ? GROUP BY 1",
+            f"SELECT schedule_code, SUM(gross_credit_exposure_usd) FROM {sf.exposure_view} WHERE report_date = ? {scenario_filter} GROUP BY 1",
             [state.config.report_date]
         ).fetchall())
         log.info("extract.schedule_exposures", schedule_exposures=schedule_exposures)
@@ -60,7 +80,7 @@ def extract_source_node(state: ReconState) -> dict:
         top50_rows = conn.execute(
             f"""SELECT counterparty_lei, SUM(gross_credit_exposure_usd) AS total_exposure
                 FROM {sf.exposure_view}
-                WHERE report_date = ?
+                WHERE report_date = ? {scenario_filter}
                 GROUP BY counterparty_lei
                 ORDER BY total_exposure DESC
                 LIMIT 50""",

@@ -80,28 +80,20 @@ def compare_node(state: ReconState) -> dict:
 
     log.info("compare.fx_deltas", fx_count=len(fx_deltas))
 
-    # 4. Silent filter exposure (invisible from logs)
-    # silent_filters is report-specific (FR 2052a); use getattr for generic access
-    silent_filters = getattr(target, 'silent_filters', [])
-    silent_filter_count = len(silent_filters) if silent_filters else 0
-    silent_filter_exposure_pct = (target.total_excluded / total_source_rows * 100) if total_source_rows > 0 else 0.0
-
-    log.info("compare.silent_exposure",
-             silent_count=silent_filter_count,
-             exposure_pct=round(silent_filter_exposure_pct, 2))
-
-    # 5. Coverage metrics
+    # 4. Coverage metrics
     overall_coverage_pct = (total_target_rows / total_source_rows * 100) if total_source_rows > 0 else 0.0
 
-    # 6. Orphans (in target but not in source - should be 0 in healthy recon)
-    # Approximate: positions loaded that weren't in source scope
+    # 5. Orphans (in target but not in source — should be 0 in healthy recon).
+    # Approximate: positions loaded that weren't in source scope.
     orphan_count = max(0, total_target_rows - total_source_rows + target.total_excluded)
 
     log.info("compare.coverage",
              overall_coverage_pct=round(overall_coverage_pct, 2),
              orphan_count=orphan_count)
 
-    # Build RawDeltas
+    # Report-specific metrics (silent filter count/exposure) are populated by
+    # plugin-specific helpers called from the classify node. The shared
+    # compare node stays report-agnostic and leaves those fields at default 0.
     deltas = RawDeltas(
         report_date=state.config.report_date,
         total_source_rows=total_source_rows,
@@ -110,15 +102,12 @@ def compare_node(state: ReconState) -> dict:
         total_row_delta_pct=total_row_delta_pct,
         table_deltas=table_deltas,
         fx_deltas=fx_deltas,
-        silent_filter_count=silent_filter_count,
-        silent_filter_exposure_pct=silent_filter_exposure_pct,
         overall_coverage_pct=overall_coverage_pct,
-        orphan_count=orphan_count
+        orphan_count=orphan_count,
     )
 
     log.info("node.complete",
              row_delta=total_row_delta,
-             coverage_pct=round(overall_coverage_pct, 2),
-             silent_filters=silent_filter_count)
+             coverage_pct=round(overall_coverage_pct, 2))
 
     return {"deltas": deltas}

@@ -1,0 +1,78 @@
+name: fr2052a_classifier
+version: "1.0"
+description: LLM prompt for FR 2052a break classification (currently used only as a template; deterministic fallback is the active classifier)
+model_tier: classifier
+tags: [classifier, fr2052a, breaks]
+
+system_prompt: |
+  You are an expert in FR 2052a regulatory reconciliation analysis.
+
+  Use the following domain knowledge to classify breaks:
+
+  {system_context}
+
+  ---
+
+  RECONCILIATION DATA:
+
+  Key Metrics:
+  {key_fields_json}
+
+  Table-Level Issues (row/notional mismatches):
+  {table_issues_json}
+
+  FX Rate Issues (>0.1% divergence):
+  {fx_issues_json}
+
+  Missing/Out-of-Sync LEIs: {missing_cpty_leis}
+  Silent Filters Applied: {silent_filter_count}
+  HQLA Downgrades: {hqla_downgrades}
+
+  FX Rate Source (Source system / Snowflake): {source_fx_rate_source}
+  FX Rate Source (Target system / AxiomSL):   {target_fx_rate_source}
+
+  ---
+
+  TASK:
+
+  Based on the data above, classify all reconciliation breaks.
+
+  For each break, provide (STANDARDIZED TAXONOMY - use exactly these break_ids):
+  - break_id: One of [BRK-001, BRK-002, BRK-003, BRK-004]
+    - BRK-001: FX_RATE_SOURCE_MISMATCH (source and target use different FX rate sources)
+    - BRK-002: HQLA_REF_STALE (HQLA reference data not refreshed, causing downgrades)
+    - BRK-003: CPTY_REF_SYNC_LAG (counterparty LEIs in source but missing in target)
+    - BRK-004: SILENT_EXCLUSION (positions excluded by SILENT ingestion filter)
+  - category: Use the break_id (e.g., "FX_RATE_SOURCE_MISMATCH" for BRK-001)
+  - severity: One of [HIGH, MEDIUM, LOW, CRITICAL]
+  - table_assignment: one of the 13 FR 2052a filing schedules (per 12 CFR 249):
+      Inflows:       I.A, I.O, I.S, I.U
+      Outflows:      O.D, O.O, O.S, O.W
+      Supplementals: S.L, S.D, S.I, S.O, S.C
+    Use null if the break is not schedule-specific.
+  - description: Human-readable description of the issue
+  - source_count: Number of affected items in source (if applicable)
+  - target_count: Number of affected items in target (if applicable)
+  - notional_impact_usd: Estimated USD impact (if calculable)
+  - root_cause: Explanation of why this break occurred
+  - recommended_action: Specific remediation steps
+
+  Return ONLY a JSON object with a "breaks" array. No markdown, no explanation.
+
+  Example:
+  {{
+    "breaks": [
+      {{
+        "break_id": "BRK-004",
+        "category": "SILENT_EXCLUSION",
+        "severity": "CRITICAL",
+        "table_assignment": null,
+        "description": "11 positions silently excluded by FWD_START_NULL_EXCL filter",
+        "source_count": 11,
+        "target_count": 0,
+        "notional_impact_usd": null,
+        "root_cause": "Ingestion filter with LogLevel=SILENT excludes positions without audit trail",
+        "recommended_action": "Review ingestion filter configuration and extract excluded positions from source"
+      }}
+    ]
+  }}

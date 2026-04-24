@@ -67,12 +67,14 @@ def extract_target_node(state: ReconState) -> dict:
         netting_set_ids=json_data.get('netting_set_ids', []),
         collateral_haircuts=xml_data.get('collateral_haircuts', {}),
         exemption_statuses=xml_data.get('exemption_statuses', {}),
+        silent_filters=xml_data.get('silent_filters', []),
         hierarchy_mismatches=xml_data.get('hierarchy_mismatches', 0),
         netting_divergences=json_data.get('netting_divergences', 0),
         collateral_drifts=json_data.get('collateral_drifts', 0),
         exemption_misclassifications=json_data.get('exemption_misclassifications', 0),
         limit_breaches=json_data.get('limit_breaches', []),
         tier1_capital=xml_data.get('tier1_capital'),
+        hierarchy_stale_days=xml_data.get('hierarchy_stale_days', 0),
     )
 
     log.info("node.complete",

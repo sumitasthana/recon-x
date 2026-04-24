@@ -1,7 +1,7 @@
 """FR 2590 (Single-Counterparty Credit Limits) state extensions."""
 
 from typing import Optional, List
-from core.state import SourceDataset, TargetDataset
+from core.state import SourceDataset, TargetDataset, FilterInfo
 
 
 class FR2590Source(SourceDataset):
@@ -24,9 +24,11 @@ class FR2590Target(TargetDataset):
     netting_set_ids: List[str] = []
     collateral_haircuts: dict[str, float] = {}  # asset class -> haircut %
     exemption_statuses: dict[str, str] = {}  # LEI -> exempt/non-exempt
+    silent_filters: List[FilterInfo] = []  # parsed from AxiomSL XML IngestionFilters
     hierarchy_mismatches: int = 0
     netting_divergences: int = 0
     collateral_drifts: int = 0
     exemption_misclassifications: int = 0
     limit_breaches: List[dict] = []  # counterparties exceeding 25%/15% limit
     tier1_capital: Optional[float] = None
+    hierarchy_stale_days: int = 0  # days since LastRefreshDate for cpty hierarchy

@@ -432,25 +432,92 @@ def _load_data(conn, config: ReconConfig):
 
 
 def ensure_database(config: ReconConfig):
-    """Check if DB exists, if not create + generate data."""
+    """Ensure the DB exists AND has data for the requested report_date.
+
+    If the DB file is missing, create + load dims + populate positions.
+    If it already exists, check whether FACT_LIQUIDITY_POSITION has rows
+    for `config.report_date`; if not, regenerate the positions for the
+    current date. This keeps historical rows intact across date changes.
+    """
     log.info("scaffold.ensure_database.start", db_path=config.db_path)
 
-    if os.path.exists(config.db_path):
-        log.info("scaffold.ensure_database.exists", db_path=config.db_path)
+    if not os.path.exists(config.db_path):
+        create_database(config)
+        conn = duckdb.connect(config.db_path)
+        try:
+            _load_data(conn, config)
+            conn.commit()
+            log.info("scaffold.dim_tables_loaded", db_path=config.db_path)
+        finally:
+            conn.close()
+        generate_synthetic_positions(config)
         return
 
-    create_database(config)
-
+    # DB exists — check whether the requested date has data.
     conn = duckdb.connect(config.db_path)
     try:
-        _load_data(conn, config)
-        conn.commit()
-        log.info("scaffold.dim_tables_loaded", db_path=config.db_path)
+        has_fact = conn.execute(
+            "SELECT COUNT(*) FROM information_schema.tables "
+            "WHERE table_schema='main' AND table_name='FACT_LIQUIDITY_POSITION'"
+        ).fetchone()[0]
+        if not has_fact:
+            conn.close()
+            log.info("scaffold.ensure_database.rescaffold_full", reason="fact table missing")
+            generate_synthetic_positions(config)
+            return
+
+        row_count = conn.execute(
+            "SELECT COUNT(*) FROM FACT_LIQUIDITY_POSITION WHERE report_date = ?",
+            [config.report_date],
+        ).fetchone()[0]
     finally:
         conn.close()
 
-    # Populate fact table with scenario-partitioned positions
-    generate_synthetic_positions(config)
+    if row_count == 0:
+        log.info("scaffold.ensure_database.rescaffold_date",
+                 report_date=config.report_date,
+                 reason="no rows for requested date")
+        _ensure_dim_fx_rate_for_date(config)
+        generate_synthetic_positions(config)
+    else:
+        # Fact data exists for this date — confirm the FX dim is also seeded
+        # (covers cases where fact was manually reloaded but fx dim wasn't).
+        _ensure_dim_fx_rate_for_date(config)
+        log.info("scaffold.ensure_database.exists",
+                 db_path=config.db_path,
+                 report_date=config.report_date,
+                 row_count=row_count)
+
+
+def _ensure_dim_fx_rate_for_date(config: ReconConfig):
+    """Insert DIM_FX_RATE rows for `config.report_date` if they aren't there.
+
+    Keeps historical FX rates intact — only adds rates for the requested
+    date when missing.
+    """
+    from datetime import datetime
+    report_date = datetime.strptime(config.report_date, '%Y-%m-%d').date()
+    conn = duckdb.connect(config.db_path)
+    try:
+        existing = conn.execute(
+            "SELECT COUNT(*) FROM DIM_FX_RATE WHERE rate_date = ?", [report_date]
+        ).fetchone()[0]
+        if existing:
+            return
+        next_id = conn.execute("SELECT COALESCE(MAX(fx_rate_id), 0) FROM DIM_FX_RATE").fetchone()[0] + 1
+        rates = _generate_dim_fx_rate_data(report_date)
+        # Re-number PKs to avoid collisions with existing rows.
+        renumbered = [(next_id + i,) + r[1:] for i, r in enumerate(rates)]
+        conn.executemany(
+            """INSERT INTO DIM_FX_RATE (fx_rate_id, currency_code, rate_date,
+                                        rate_source, rate_to_usd, usd_per_unit, rate_quality_flag)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            renumbered,
+        )
+        conn.commit()
+        log.info("scaffold.dim_fx_rate.seeded", report_date=str(report_date), rows=len(rates))
+    finally:
+        conn.close()
 
 
 def verify_scaffold(config: ReconConfig) -> dict:
@@ -477,24 +544,10 @@ def verify_scaffold(config: ReconConfig) -> dict:
         conn.close()
 
 
-"""Scenario definitions — each scenario plants different break combinations.
-
-| ID | Name              | BRK-001 (FX) | BRK-002 (HQLA) | BRK-003 (CPTY) | BRK-004 (Silent) |
-|----|-------------------|-------------|---------------|---------------|-------------------|
-| s1 | Clean run         | No          | No            | No            | No                |
-| s2 | FX mismatch only  | Yes (30 EUR)| No            | No            | No                |
-| s3 | Multi-break       | Yes (30 EUR)| No            | Yes (12 LEIs) | Yes (11 fwd)      |
-| s4 | HQLA critical     | Yes (30 EUR)| Yes (8 pos)   | No            | No                |
-| s5 | Silent heavy      | No          | No            | Yes (20 LEIs) | Yes (25 fwd)      |
-"""
-
-SCENARIO_CONFIGS = {
-    "s1": {"brk001_eur_count": 0,  "brk002_hqla_count": 0, "brk003_lei_count": 0,  "brk004_fwd_count": 0,  "eur_fx_rate": 1.0825, "eur_notional": 0},
-    "s2": {"brk001_eur_count": 8,  "brk002_hqla_count": 0, "brk003_lei_count": 0,  "brk004_fwd_count": 0,  "eur_fx_rate": 1.0842, "eur_notional": 2_500_000},
-    "s3": {"brk001_eur_count": 12, "brk002_hqla_count": 0, "brk003_lei_count": 12, "brk004_fwd_count": 11, "eur_fx_rate": 1.0842, "eur_notional": 3_200_000},
-    "s4": {"brk001_eur_count": 20, "brk002_hqla_count": 8, "brk003_lei_count": 0,  "brk004_fwd_count": 0,  "eur_fx_rate": 1.0900, "eur_notional": 1_800_000},
-    "s5": {"brk001_eur_count": 0,  "brk002_hqla_count": 0, "brk003_lei_count": 20, "brk004_fwd_count": 25, "eur_fx_rate": 1.0825, "eur_notional": 0},
-}
+# Scenario definitions live with the plugin that owns them (reports/fr2052a/scenarios.py).
+# This platform scaffolder is responsible for the snowflake-like data layer;
+# it imports scenario knobs from the plugin rather than defining them here.
+from reports.fr2052a.scenarios import SCENARIO_CONFIGS  # noqa: E402
 
 
 def generate_synthetic_positions(config: ReconConfig):
@@ -509,16 +562,31 @@ def generate_synthetic_positions(config: ReconConfig):
     log.info("synthetic.generation.start", db_path=config.db_path, scenarios=list(SCENARIO_CONFIGS.keys()))
     report_date = datetime.strptime(config.report_date, '%Y-%m-%d').date()
 
-    table_dist = {'T1': 80, 'T2': 70, 'T3': 60, 'T4': 50, 'T5': 60, 'T6': 50, 'T7': 40, 'T8': 40, 'T9': 30, 'T10': 20}
-    product_map = {'T1': 'DEPOSIT', 'T2': 'SECURITY', 'T3': 'REPO', 'T4': 'LOAN', 'T5': 'DEPOSIT', 'T6': 'FX_FORWARD', 'T7': 'SECURITY', 'T8': 'SECURITY', 'T9': 'DEPOSIT', 'T10': 'MISC'}
+    # 13 real FR 2052a schedules (per 12 CFR 249). Row distribution sums to 500 per scenario.
+    table_dist = {
+        'I.A': 55, 'I.O': 25, 'I.S': 45, 'I.U': 50,    # Inflows
+        'O.D': 65, 'O.O': 25, 'O.S': 40, 'O.W': 50,    # Outflows (O.W is EUR wholesale pool)
+        'S.L': 35, 'S.D': 45, 'S.I': 25, 'S.O': 20, 'S.C': 20,  # Supplementals (S.D = FX forwards)
+    }
+    product_map = {
+        'I.A': 'SECURITY', 'I.O': 'OTHER_ASSET', 'I.S': 'REVERSE_REPO', 'I.U': 'LOAN',
+        'O.D': 'DEPOSIT',  'O.O': 'OTHER_OUTFLOW', 'O.S': 'REPO', 'O.W': 'WHOLESALE_DEPOSIT',
+        'S.L': 'HQLA_ASSET', 'S.D': 'FX_FORWARD', 'S.I': 'REPORTED_INFO',
+        'S.O': 'OUTSTANDING', 'S.C': 'COMMITMENT',
+    }
     currencies = ['USD', 'EUR', 'GBP', 'JPY', 'CAD']
     base_fx = {'USD': 1.0, 'EUR': 1.0825, 'GBP': 1.2650, 'JPY': 0.0067, 'CAD': 0.7250}
     brk003_leis = ['2138007KXLC2WXJSXT05', '549300YEUVVT5NJWXM25', 'NEWCP001XXXXXXXXXXXX', 'NEWCP002XXXXXXXXXXXX', '549300ZZZZZZZZZZZZ99']
 
     conn = duckdb.connect(config.db_path)
     try:
-        conn.execute("DELETE FROM FACT_LIQUIDITY_POSITION")
-        global_pid = 1
+        # Only wipe rows for the CURRENT report_date so historical dates
+        # stay intact across back-to-back runs with different dates.
+        conn.execute("DELETE FROM FACT_LIQUIDITY_POSITION WHERE report_date = ?", [report_date])
+        max_pid_row = conn.execute(
+            "SELECT COALESCE(MAX(position_id), 0) FROM FACT_LIQUIDITY_POSITION"
+        ).fetchone()
+        global_pid = (max_pid_row[0] if max_pid_row else 0) + 1
 
         for scenario_id, sc in SCENARIO_CONFIGS.items():
             rng = random.Random(hash(scenario_id))
@@ -540,34 +608,34 @@ def generate_synthetic_positions(config: ReconConfig):
                     forward_start_flag = False
                     forward_start_date = None
                     cusip = None
-                    hqla_flag = table_code in ['T2', 'T7', 'T8']
+                    # HQLA-bearing schedules: Inflows Assets + Supplemental Liquidity + Supplemental Informational
+                    hqla_flag = table_code in ['I.A', 'S.L', 'S.I']
 
-                    # BRK-001: EUR positions in T5 with divergent FX rate
-                    if table_code == 'T5' and brk001_placed < brk001_n:
+                    # BRK-001: EUR positions in O.W (Outflows Wholesale) with divergent FX rate
+                    if table_code == 'O.W' and brk001_placed < brk001_n:
                         currency = 'EUR'
                         fx_rate = eur_fx
-                        # Vary notional per scenario so impact differs
                         base_notional = sc.get("eur_notional", 42_333_333)
                         notional_orig = round(base_notional * rng.uniform(0.8, 1.2), 2)
                         brk001_placed += 1
 
                     # BRK-002: HQLA positions with specific CUSIPs
-                    if table_code in ['T2', 'T7', 'T8'] and brk002_placed < brk002_n:
+                    if table_code in ['I.A', 'S.L', 'S.I'] and brk002_placed < brk002_n:
                         cusip = rng.choice(['3130AXXX1', '3130AXXX2', '9128284X5'])
                         hqla_flag = True
                         brk002_placed += 1
 
-                    # BRK-003: Unsynced counterparty LEIs
-                    if table_code in ['T5', 'T7', 'T8'] and brk003_placed < brk003_n:
+                    # BRK-003: Unsynced counterparty LEIs (O.W wholesale + HQLA schedules)
+                    if table_code in ['O.W', 'S.L', 'S.I'] and brk003_placed < brk003_n:
                         counterparty_lei = brk003_leis[brk003_placed % len(brk003_leis)]
                         brk003_placed += 1
 
-                    # BRK-004: Forward start NULL candidates
-                    if table_code == 'T6' and brk004_placed < brk004_n:
+                    # BRK-004: Forward start NULL candidates in S.D (Supplemental Derivatives)
+                    if table_code == 'S.D' and brk004_placed < brk004_n:
                         forward_start_flag = True
                         forward_start_date = None
                         brk004_placed += 1
-                    elif table_code == 'T6':
+                    elif table_code == 'S.D':
                         forward_start_flag = rng.choice([True, False])
                         if forward_start_flag:
                             forward_start_date = report_date + timedelta(days=rng.randint(1, 90))

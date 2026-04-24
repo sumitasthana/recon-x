@@ -96,7 +96,7 @@ def test_brk001_fx_rate():
     breaks = _deterministic_classification(state)
     brk001 = [b for b in breaks if b.break_id == "BRK-001"]
     assert len(brk001) == 1, "BRK-001 (FX rate source mismatch) should be detected"
-    assert brk001[0].category == "FX_RATE_SOURCE_MISMATCH"
+    assert brk001[0].category == "FR2052A_FX_RATE_SOURCE_MISMATCH"
 
 
 def test_brk002_hqla():
@@ -148,7 +148,7 @@ def test_brk002_hqla():
     breaks = _deterministic_classification(state)
     brk002 = [b for b in breaks if b.break_id == "BRK-002"]
     assert len(brk002) == 1, "BRK-002 (HQLA stale) should be detected"
-    assert brk002[0].category == "HQLA_REF_STALE"
+    assert brk002[0].category == "FR2052A_HQLA_REF_STALE"
     assert brk002[0].source_count == 3
 
 
@@ -201,7 +201,7 @@ def test_brk003_counterparty():
     breaks = _deterministic_classification(state)
     brk003 = [b for b in breaks if b.break_id == "BRK-003"]
     assert len(brk003) == 1, "BRK-003 (CPTY sync lag) should be detected"
-    assert brk003[0].category == "CPTY_REF_SYNC_LAG"
+    assert brk003[0].category == "FR2052A_CPTY_REF_SYNC_LAG"
 
 
 def test_brk004_silent():
@@ -217,7 +217,7 @@ def test_brk004_silent():
         fx_rates={},
         fx_rate_source="ECB_Fixing",
         hqla_positions=[],
-        fwd_start_candidates=["pos1", "pos2", "pos3", "pos4", "pos5"],
+        fwd_start_candidates=[{"position_id": f"pos{i}"} for i in range(1, 6)],
         unsynced_leis=[]
     )
 
@@ -259,7 +259,7 @@ def test_brk004_silent():
     breaks = _deterministic_classification(state)
     brk004 = [b for b in breaks if b.break_id == "BRK-004"]
     assert len(brk004) == 1, "BRK-004 (Silent exclusion) should be detected"
-    assert brk004[0].category == "SILENT_EXCLUSION"
+    assert brk004[0].category == "FR2052A_SILENT_EXCLUSION"
 
 
 # ============================================================================
@@ -279,7 +279,7 @@ def test_recon_score():
         fx_rates={"EUR/USD": 1.0842},
         fx_rate_source="ECB_Fixing",
         hqla_positions=[],
-        fwd_start_candidates=["pos1"] * 11,
+        fwd_start_candidates=[{"position_id": "pos1"}] * 11,
         unsynced_leis=["LEI123"]
     )
 
@@ -357,7 +357,7 @@ def test_all_breaks_detected():
         fx_rates={"EUR/USD": 1.0842},
         fx_rate_source="ECB_Fixing",
         hqla_positions=[],
-        fwd_start_candidates=["pos1"] * 11,
+        fwd_start_candidates=[{"position_id": "pos1"}] * 11,
         unsynced_leis=["LEI123", "LEI456"]
     )
 
@@ -450,8 +450,8 @@ def test_skill_isolation():
     with open("reports/fr2052a/extract_target.py", "r") as f:
         target_content = f.read()
 
-    # Check shared compare node
-    with open("agents/compare.py", "r") as f:
+    # Check shared compare node (moved from agents/ -> core/ in a prior refactor)
+    with open("core/compare.py", "r") as f:
         compare_content = f.read()
 
     source_code = re.sub(r'""".*?"""', '', source_content, flags=re.DOTALL)

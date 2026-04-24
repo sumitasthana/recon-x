@@ -147,13 +147,22 @@ def _resolve_scenario() -> str:
     return scenario
 
 
-# Mapping from scenario_id to AxiomSL XML config file
+# Mapping from scenario_id to AxiomSL XML config file (FR 2052a)
 SCENARIO_XML = {
     "s1": "fr2052a_config_s1.xml",
     "s2": "fr2052a_config_s2.xml",
     "s3": "fr2052a_config_s3.xml",
     "s4": "fr2052a_config_s4.xml",
     "s5": "fr2052a_config_s5.xml",
+}
+
+# Mapping from scenario_id to FR 2590 target JSON file
+FR2590_SCENARIO_JSON = {
+    "s1": "fr2590_target_s1.json",
+    "s2": "fr2590_target_s2.json",
+    "s3": "fr2590_target_s3.json",
+    "s4": "fr2590_target_s4.json",
+    "s5": "fr2590_target_s5.json",
 }
 
 
@@ -181,9 +190,11 @@ async def run_recon(request: ReconRequest):
         entity_id=request.entity_id,
         scenario_id=scenario,
     )
-    # Point to scenario-specific XML config
-    if scenario in SCENARIO_XML:
+    # Point to scenario-specific files per report type
+    if config.report_type == "fr2052a" and scenario in SCENARIO_XML:
         config.client_schema.axiomsl.config_file = SCENARIO_XML[scenario]
+    if config.report_type == "fr2590" and scenario in FR2590_SCENARIO_JSON:
+        config.client_schema.fr2590.axiomsl.output_file = FR2590_SCENARIO_JSON[scenario]
 
     async def event_stream():
         log = structlog.get_logger().bind(
@@ -197,6 +208,9 @@ async def run_recon(request: ReconRequest):
             if config.report_type == "fr2590":
                 ensure_fr2590_tables(config)
                 create_axiomsl_test_data(config)
+            elif config.report_type == "fr2052a":
+                from reports.fr2052a.data_scaffold import create_axiomsl_test_data as create_fr2052a_log
+                create_fr2052a_log(config)
 
             steps = plugin.steps_metadata()
             node_names = ["extract_source", "extract_target", "compare", "classify"]

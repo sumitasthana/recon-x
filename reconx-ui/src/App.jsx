@@ -26,8 +26,8 @@ const REGULATIONS = [
 ];
 
 const NAV_ITEMS = [
-  { id: 'observatory', label: 'Observatory' },
   { id: 'recon', label: 'Reconciliation' },
+  { id: 'observatory', label: 'Observatory' },
   { id: 'auditlog', label: 'Audit log' },
 ];
 

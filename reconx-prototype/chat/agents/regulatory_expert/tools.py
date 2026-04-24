@@ -110,13 +110,15 @@ def get_recon_summary(report_type: str, date: str = "latest") -> str:
 
 @tool
 def search_regulatory_docs(query: str) -> str:
-    """Search the regulatory knowledge base for FR 2052a / FR 2590 domain
-    knowledge, break taxonomies, validation rules, HQLA classification,
-    FX tolerance thresholds, table routing rules, and platform procedures.
+    """Search the regulatory knowledge base (RAG over SKILL.md) for FR 2052a /
+    FR 2590 domain knowledge: break taxonomies, validation rules, HQLA
+    classification, FX tolerance thresholds, table routing rules, scoring
+    formulas, and platform procedures.
 
-    Use this tool when the user asks about regulatory definitions, break
-    categories, scoring formulas, or platform-specific procedures that are
-    not in the current conversation context.
+    Primary tool for any regulatory-definition or domain-knowledge question
+    (e.g., "What is HQLA?", "How is coverage scored?", "What's the FX
+    tolerance?"). Call this directly — do NOT call list_available_reports
+    first for pure knowledge questions.
 
     query: natural-language search query, e.g. 'HQLA classification rules'
     """

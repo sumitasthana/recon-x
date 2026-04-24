@@ -49,13 +49,22 @@ def extract_target_node(state: ReconState) -> dict:
              table_count=len(json_data.get('table_notionals', {})),
              hqla_downgrades=json_data.get('hqla_downgrades', 0))
 
+    # Translate synthetic T-codes to real FR 2052a schedule codes so both
+    # sides of the compare use the same schedule namespace.
+    from reports.fr2052a.scenarios import (
+        translate_table_counts,
+        translate_table_notionals,
+    )
+    translated_counts = translate_table_counts(json_data.get('table_counts', {}))
+    translated_notionals = translate_table_notionals(json_data.get('table_notionals', {}))
+
     # Build FR2052aTarget (extends TargetDataset)
     target = FR2052aTarget(
         report_date=state.config.report_date,
         total_loaded=log_data.get('loaded', 0),
         total_excluded=log_data.get('excluded', 0),
-        table_counts=json_data.get('table_counts', {}),
-        table_notionals=json_data.get('table_notionals', {}),
+        table_counts=translated_counts,
+        table_notionals=translated_notionals,
         fx_rates=log_data.get('fx_rates', {}),
         fx_rate_source=xml_data.get('fx_rate_source', 'unknown'),
         warn_exclusions=log_data.get('warn_exclusions', []),
@@ -95,10 +104,13 @@ def _parse_log_file(log_path: str) -> dict:
     if excluded_match:
         data['excluded'] = int(excluded_match.group(1))
 
+    # Key by base currency (same convention as extract_source) so the
+    # compare node can diff them row-by-row instead of treating each side's
+    # keys as missing on the other.
     fx_pattern = r'([A-Z]{3})/([A-Z]{3}):\s*([\d.]+)'
     for match in re.finditer(fx_pattern, content):
-        pair = f"{match.group(1)}/{match.group(2)}"
-        data['fx_rates'][pair] = float(match.group(3))
+        base_ccy = match.group(1)
+        data['fx_rates'][base_ccy] = float(match.group(3))
 
     warn_pattern = r'WARN_EXCLUSION:\s*position_id=(\d+)'
     for match in re.finditer(warn_pattern, content):

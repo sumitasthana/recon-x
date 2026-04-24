@@ -30,6 +30,7 @@ The loader is designed to plug directly into LangGraph's create_react_agent::
 
 import os
 import glob
+from datetime import date
 import yaml
 import structlog
 from typing import Any
@@ -55,26 +56,37 @@ class PromptLoader:
         self._load_all()
 
     def _load_all(self):
-        """Scan agents/*/prompt.yaml and load each into the cache."""
-        self._cache.clear()
-        if not os.path.isdir(self.agents_dir):
-            log.warning("agents_dir_missing", path=self.agents_dir)
-            return
+        """Scan all prompt YAML files across the project and load into cache.
 
-        pattern = os.path.join(self.agents_dir, "*", "prompt.yaml")
-        for path in glob.glob(pattern):
-            try:
-                with open(path, encoding="utf-8") as f:
-                    data = yaml.safe_load(f)
-                if not data or "name" not in data or "system_prompt" not in data:
-                    log.warning("prompt_file_invalid", file=path)
-                    continue
-                data["_file"] = os.path.relpath(path, self.agents_dir)
-                data["_path"] = path
-                self._cache[data["name"]] = data
-                log.debug("prompt_loaded", name=data["name"], version=data.get("version"))
-            except Exception as e:
-                log.error("prompt_load_error", file=path, error=str(e))
+        Covers:
+          - chat/agents/<name>/prompt.yaml       (chat agents)
+          - reports/<name>/classify_prompt.yaml  (per-regulation classifier prompts)
+        """
+        self._cache.clear()
+
+        project_root = os.path.dirname(os.path.dirname(self.agents_dir))
+        scan_patterns = [
+            os.path.join(self.agents_dir, "*", "prompt.yaml"),
+            os.path.join(project_root, "reports", "*", "classify_prompt.yaml"),
+        ]
+
+        for pattern in scan_patterns:
+            for path in glob.glob(pattern):
+                try:
+                    with open(path, encoding="utf-8") as f:
+                        data = yaml.safe_load(f)
+                    if not data or "name" not in data or "system_prompt" not in data:
+                        log.warning("prompt_file_invalid", file=path)
+                        continue
+                    try:
+                        data["_file"] = os.path.relpath(path, project_root)
+                    except ValueError:
+                        data["_file"] = os.path.basename(path)
+                    data["_path"] = path
+                    self._cache[data["name"]] = data
+                    log.debug("prompt_loaded", name=data["name"], version=data.get("version"))
+                except Exception as e:
+                    log.error("prompt_load_error", file=path, error=str(e))
 
     def reload(self):
         """Reload all prompts from disk (e.g. after an edit)."""
@@ -103,6 +115,7 @@ class PromptLoader:
                     report_type=getattr(config, "report_type", "fr2052a"),
                     report_date=getattr(config, "report_date", "2026-04-04"),
                     db_path=getattr(config, "db_path", "data/snowflake/fr2052a.duckdb"),
+                    today=date.today().isoformat(),
                 )
                 prompt = prompt + "\n" + context.strip()
             except (KeyError, AttributeError) as e:

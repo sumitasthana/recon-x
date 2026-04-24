@@ -2,6 +2,10 @@ import structlog
 import duckdb
 from core.state import ReconState
 from reports.fr2052a.state import FR2052aSource
+from reports.fr2052a.scenarios import (
+    translate_table_counts,
+    translate_table_notionals,
+)
 
 
 def extract_source_node(state: ReconState) -> dict:
@@ -34,17 +38,19 @@ def extract_source_node(state: ReconState) -> dict:
         ).fetchone()[0]
         log.info("extract.total_rows", total_rows=total)
 
-        # 1b. Per-table counts
-        table_counts = dict(conn.execute(
+        # 1b. Per-table counts — translate synthetic T-codes to real FR 2052a schedules
+        raw_counts = dict(conn.execute(
             f"SELECT table_assignment, COUNT(*) FROM {sf.recon_view} WHERE report_date = ? {scenario_filter} GROUP BY 1",
             [state.config.report_date]
         ).fetchall())
+        table_counts = translate_table_counts(raw_counts)
 
-        # 1c. Per-table notionals
-        table_notionals = dict(conn.execute(
+        # 1c. Per-table notionals — same translation
+        raw_notionals = dict(conn.execute(
             f"SELECT table_assignment, SUM(notional_amount_usd) FROM {sf.recon_view} WHERE report_date = ? {scenario_filter} GROUP BY 1",
             [state.config.report_date]
         ).fetchall())
+        table_notionals = translate_table_notionals(raw_notionals)
 
         # 1d. FX rates (dimension table — no scenario filter)
         fx_rows = conn.execute(

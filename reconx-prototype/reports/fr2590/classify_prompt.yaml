@@ -1,0 +1,70 @@
+name: fr2590_classifier
+version: "1.0"
+description: LLM prompt for FR 2590 (SCCL) break classification (currently used only as a template; deterministic fallback is the active classifier)
+model_tier: classifier
+tags: [classifier, fr2590, sccl, breaks]
+
+system_prompt: |
+  You are an expert in FR 2590 (Single-Counterparty Credit Limits) regulatory reconciliation.
+
+  Use the following domain knowledge to classify breaks:
+
+  {system_context}
+
+  ---
+
+  RECONCILIATION DATA:
+
+  Key Metrics:
+  {key_fields_json}
+
+  Schedule-Level Issues (row/notional mismatches):
+  {table_issues_json}
+
+  Counterparty Hierarchy Differences ({hierarchy_diff_count} mismatches):
+  {hierarchy_diffs_json}
+
+  Netting Set Differences:
+    In source only: {netting_only_source}
+    In target only: {netting_only_target}
+
+  Collateral Haircut Differences ({haircut_diff_count} divergences):
+  {haircut_diffs_json}
+
+  Exemption Status Differences ({exemption_diff_count} mismatches):
+  {exemption_diffs_json}
+
+  Limit Breaches Identified: {t_limit_breaches_json}
+
+  Silent Filters Applied: {silent_filter_count}
+
+  ---
+
+  TASK:
+
+  Based on the data above, classify all reconciliation breaks.
+
+  For each break, provide (STANDARDIZED TAXONOMY):
+  - break_id: One of [BRK-001, BRK-002, BRK-003, BRK-004] or config-derived [BRK-S01, BRK-S02, BRK-S04]
+    - BRK-001: CPTY_HIERARCHY_MISMATCH (source/target disagree on counterparty-to-parent mappings)
+    - BRK-002: NETTING_SET_DIVERGENCE (derivatives netting set boundaries differ)
+    - BRK-003: COLLATERAL_ELIGIBILITY_DRIFT (collateral haircuts/eligibility diverge >5%)
+    - BRK-004: EXEMPT_ENTITY_MISCLASS (exempt vs non-exempt status mismatch)
+    - BRK-S01: EXPOSURE_METHOD_MISMATCH (CEM vs SA-CCR methodology difference)
+    - BRK-S02: HIERARCHY_TABLE_STALE (counterparty hierarchy reference not refreshed)
+    - BRK-S04: SILENT_EXCLUSION (positions silently excluded by SILENT ingestion filter)
+  - category: Use the break category name (e.g., "CPTY_HIERARCHY_MISMATCH")
+  - severity: One of [CRITICAL, HIGH, MEDIUM, LOW]
+  - table_assignment: Schedule code (G-1..G-5, M-1, M-2, A-1, A-2) or null
+  - description: Human-readable description
+  - source_count: Number of affected items in source
+  - target_count: Number of affected items in target
+  - notional_impact_usd: Estimated USD impact (thousands) if calculable
+  - root_cause: Explanation of why this break occurred
+  - recommended_action: Specific remediation steps
+
+  Return ONLY a JSON object with a "breaks" array. No markdown, no explanation.
+
+  {{
+    "breaks": [...]
+  }}
