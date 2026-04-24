@@ -16,8 +16,17 @@ build/
 .pytest_cache/
 
 # Runtime artifacts
-data/output/*.log
-data/snowflake/*.duckdb
+**/data/output/*.log
+**/data/output/*.db
+**/data/output/*.db-shm
+**/data/output/*.db-wal
+**/data/output/.scenario_counter
+**/data/output/break_report_*.json
+**/data/snowflake/*.duckdb
+**/data/axiomsl/*.log
+
+# Node
+node_modules/
 
 # IDE
 .vscode/
