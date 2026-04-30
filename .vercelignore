@@ -1,0 +1,6 @@
+reconx-prototype/
+docs/
+.venv/
+.pytest_cache/
+.claude/
+*.md
