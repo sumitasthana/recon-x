@@ -86,7 +86,7 @@ class FR2590Plugin(ReportPlugin):
             {
                 "id": "step4",
                 "label": "Classifying breaks",
-                "subtitle": "AI-powered SCCL analysis",
+                "subtitle": "SCCL exposure analysis",
                 "skills": ["regulatory"],
                 "messages": [
                     {"text": "Loading FR 2590 SCCL regulatory knowledge", "delay": 0, "skill": "regulatory"},

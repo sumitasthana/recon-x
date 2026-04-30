@@ -18,11 +18,38 @@ function scoreLabel(s) { return s >= 80 ? 'Healthy' : s >= 60 ? 'Needs attention
 function fmtDate(d) { return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }
 function fmtWeekday(d) { return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short' }); }
 
-/* ── Stat Card ── */
-function StatCard({ label, value, sub, color }) {
+/* ── Info icon with hover popover (CSS-only) ──
+   Wraps an "i" badge that reveals a small explanatory card on
+   hover/focus. Anchored to the right edge of the icon so it
+   never overflows the card's right margin. */
+function InfoIcon({ text }) {
   return (
-    <div className="bg-white border border-g-200 rounded-[10px] shadow-card px-4 py-3.5">
-      <div className="text-[10px] font-medium text-g-400 uppercase tracking-wider mb-2">{label}</div>
+    <span className="relative inline-flex group" tabIndex={0}>
+      <span
+        aria-hidden
+        className="w-3.5 h-3.5 rounded-full border border-g-300 text-g-400 flex items-center justify-center font-semibold leading-none cursor-help bg-white"
+        style={{ fontSize: 9, fontFamily: "'DM Sans'" }}
+      >
+        i
+      </span>
+      <span
+        className="absolute z-50 hidden group-hover:block group-focus-within:block top-full mt-1.5 right-0 w-[280px] bg-white border border-g-200 rounded-lg shadow-md p-3 text-[11px] text-g-600 leading-[1.6] font-light pointer-events-none"
+        role="tooltip"
+      >
+        {text}
+      </span>
+    </span>
+  );
+}
+
+/* ── Stat Card ── */
+function StatCard({ label, value, sub, color, info }) {
+  return (
+    <div className="bg-white border border-g-200 rounded-[10px] shadow-card px-4 py-3.5 relative">
+      <div className="flex items-center justify-between mb-2 gap-2">
+        <div className="text-[10px] font-medium text-g-400 uppercase tracking-wider">{label}</div>
+        {info && <InfoIcon text={info} />}
+      </div>
       <div className="text-[26px] font-medium leading-none tracking-tight" style={{ color: color || C.g800 }}>{value}</div>
       {sub && <div className="text-[11px] text-g-400 mt-1.5 font-light">{sub}</div>}
     </div>
@@ -30,10 +57,13 @@ function StatCard({ label, value, sub, color }) {
 }
 
 /* ── Chart wrapper ── */
-function ChartSection({ title, children }) {
+function ChartSection({ title, children, info }) {
   return (
-    <div className="bg-white border border-g-200 rounded-[10px] shadow-card px-5 py-4">
-      <div className="text-[13px] text-g-700 font-medium mb-3">{title}</div>
+    <div className="bg-white border border-g-200 rounded-[10px] shadow-card px-5 py-4 relative">
+      <div className="flex items-center justify-between mb-3 gap-2">
+        <div className="text-[13px] text-g-700 font-medium">{title}</div>
+        {info && <InfoIcon text={info} />}
+      </div>
       {children}
     </div>
   );
@@ -188,7 +218,111 @@ function ImpactTrendChart({ data }) {
 /* ════════════════════════════════════════════════════════
    Break Category Frequency (horizontal bars)
    ════════════════════════════════════════════════════════ */
-const CAT_COLORS = { FX_RATE_SOURCE_MISMATCH: C.red, HQLA_REF_STALE: C.amber, CPTY_REF_SYNC_LAG: C.blue, SILENT_EXCLUSION: C.purple };
+
+/* Saved reports use mixed naming: FR 2052a categories are prefixed
+   ("FR2052A_FX_RATE_SOURCE_MISMATCH"), FR 2590 categories are bare
+   ("CPTY_HIERARCHY_MISMATCH"). Normalize to the bare key for both
+   colour and glossary lookups. */
+function normCat(cat) {
+  if (!cat) return cat;
+  return String(cat).replace(/^FR2052A_/, '').replace(/^FR2590_/, '');
+}
+
+const CAT_COLORS = {
+  // FR 2052a
+  FX_RATE_SOURCE_MISMATCH:      C.red,
+  HQLA_REF_STALE:               C.amber,
+  CPTY_REF_SYNC_LAG:            C.blue,
+  // FR 2590 SCCL
+  CPTY_HIERARCHY_MISMATCH:      C.blue,
+  NETTING_SET_DIVERGENCE:       C.amber,
+  COLLATERAL_ELIGIBILITY_DRIFT: C.green,
+  EXEMPT_ENTITY_MISCLASS:       C.red,
+  EXPOSURE_METHOD_MISMATCH:     C.purple,
+  HIERARCHY_TABLE_STALE:        C.amber,
+  // Shared by both reports — both name it SILENT_EXCLUSION
+  SILENT_EXCLUSION:             C.purple,
+};
+
+/* Plain-language glossary for break categories. Used by every
+   surface that renders a category name (chart labels, recurring
+   list, expanded run detail, etc.). Keep these explanations
+   short and jargon-free. */
+const CATEGORY_GLOSSARY = {
+  // ── FR 2052a (Liquidity) ──────────────────────────────
+  FX_RATE_SOURCE_MISMATCH:
+    'Snowflake and AxiomSL used different sources for the same currency on the same date. ' +
+    'For example, Snowflake converts using Bloomberg’s BFIX 18:30 ET fixing, while AxiomSL ' +
+    'converts using ECB’s prior-day rate. Even a tiny gap (EUR/USD 1.0842 vs 1.0831) ' +
+    'produces millions in notional variance on a large EUR book. Affects schedule O.W.',
+  HQLA_REF_STALE:
+    'AxiomSL’s reference table for HQLA-eligible securities is out of date. Snowflake ' +
+    'recognises CUSIPs added in the latest Fed bulletin; AxiomSL still uses the old list. ' +
+    'The same bond ends up classified as HQLA in one system and Non-HQLA in the other, ' +
+    'distorting the liquidity buffer reported on schedules I.A and S.L.',
+  CPTY_REF_SYNC_LAG:
+    'A counterparty (identified by its LEI) has been added to Snowflake but not yet pushed ' +
+    'to AxiomSL’s CPTY_REF table. AxiomSL’s UNMAPPED_CPTY_EXCL filter then drops the ' +
+    'position with a warning, so it never reaches the regulatory schedule. Typical fix: ' +
+    'sync the counterparty master before the next ingestion run. Affects schedule S.D.',
+
+  // ── FR 2590 SCCL (Single-Counterparty Credit Limits) ──
+  CPTY_HIERARCHY_MISMATCH:
+    'Snowflake and AxiomSL disagree on which parent group a counterparty rolls up to. ' +
+    'SCCL aggregates exposure at the corporate-family level, so a hierarchy gap means the ' +
+    'wrong entities are being summed together. Common cause: M&A activity captured in the ' +
+    'source entity master but not yet pushed to AxiomSL’s SCCL_CPTY_HIERARCHY. Affects A-1.',
+  NETTING_SET_DIVERGENCE:
+    'Snowflake and AxiomSL define different netting sets for the same counterparty’s ' +
+    'derivatives. Netting sets decide how gross exposures collapse to net under an ISDA ' +
+    'master agreement, so a boundary difference changes the reported credit exposure on ' +
+    'schedule G-4. Common cause: ISDA scoping or cross-product netting elections drifting ' +
+    'between the source platform and AxiomSL.',
+  COLLATERAL_ELIGIBILITY_DRIFT:
+    'Collateral haircuts diverge between Snowflake and AxiomSL by more than 5% on one or ' +
+    'more asset classes. Haircuts shrink the credit exposure reported on schedule M-1, so ' +
+    'a haircut gap directly changes net exposure. Common cause: Snowflake updated to the ' +
+    'latest haircut schedule but AxiomSL’s collateral mapping is stale.',
+  EXEMPT_ENTITY_MISCLASS:
+    'A counterparty’s exemption status (sovereign, QCCP, GSE) is recorded differently in ' +
+    'Snowflake versus AxiomSL. Exempt exposures are excluded from the SCCL limit ' +
+    'calculation, so a misclassification can over- or under-state limit utilisation on ' +
+    'schedule G-1. Common cause: stale FSOC designations in AxiomSL’s SCCL_EXEMPTION_REF.',
+  EXPOSURE_METHOD_MISMATCH:
+    'Snowflake and AxiomSL are computing derivative exposure with different methodologies ' +
+    '— one uses SA-CCR (the modern method), the other CEM. CEM produces higher PFE on FX ' +
+    'and equity derivatives, so the same trade book yields different limit utilisation. ' +
+    'Common cause: AxiomSL’s ExposureMethodConfig.xml reverted to CEM without a matching ' +
+    'update to the Snowflake pipeline. Affects G-4.',
+  HIERARCHY_TABLE_STALE:
+    'AxiomSL’s counterparty hierarchy table (SCCL_CPTY_HIERARCHY) has known missing or ' +
+    'stale entries and hasn’t been refreshed on schedule. Even before individual mappings ' +
+    'are compared, AxiomSL itself is reporting that its hierarchy is out of date — so ' +
+    'aggregate exposure groups can’t be trusted until the refresh runs. Affects A-1.',
+
+  // ── Shared ────────────────────────────────────────────
+  SILENT_EXCLUSION:
+    'AxiomSL’s ingestion filters dropped positions or exposures matching some rule — for ' +
+    'example, FR 2052a FX forwards with no forward_start_date, or FR 2590 securitisation ' +
+    'look-through exposures with no beneficial owner — without raising any error. The only ' +
+    'signal is a row-count gap between Snowflake and AxiomSL. Per regulatory guidance these ' +
+    'usually shouldn’t be excluded; they should be reported as “unknown counterparty” or ' +
+    'routed to the OPEN bucket.',
+};
+
+/* Helper — render a break-category name with an inline info "i"
+   if we have a glossary entry for it. Lookup is prefix-aware so
+   FR2052A_X and bare X both resolve. */
+function CategoryLabel({ category, color, mono = true, className = '' }) {
+  const text = category.replace(/_/g, ' ');
+  const explain = CATEGORY_GLOSSARY[normCat(category)];
+  return (
+    <span className={`inline-flex items-center gap-1.5 ${className}`}>
+      <span className={mono ? 'font-mono' : ''} style={{ color }}>{text}</span>
+      {explain && <InfoIcon text={explain} />}
+    </span>
+  );
+}
 
 function CategoryChart({ data }) {
   const counts = {};
@@ -200,10 +334,12 @@ function CategoryChart({ data }) {
   return (
     <div className="space-y-2">
       {entries.map(([cat, count]) => {
-        const color = CAT_COLORS[cat] || C.g500;
+        const color = CAT_COLORS[normCat(cat)] || C.g500;
         return (
           <div key={cat} className="flex items-center gap-3">
-            <div className="min-w-[140px] text-[11px] font-mono text-g-600 truncate" title={cat}>{cat.replace(/_/g, ' ')}</div>
+            <div className="min-w-[160px] text-[11px] text-g-600" title={cat}>
+              <CategoryLabel category={cat} color={C.g600 || '#4b5563'} />
+            </div>
             <div className="flex-1 h-[14px] bg-g-100 rounded overflow-hidden">
               <div className="h-full rounded transition-all duration-500" style={{ width: `${(count / maxCount) * 100}%`, backgroundColor: color, opacity: 0.7 }} />
             </div>
@@ -253,7 +389,7 @@ const SEVERITY_STYLE = {
 
 function BreakDetailCard({ brk }) {
   const sev = SEVERITY_STYLE[brk.severity] || SEVERITY_STYLE.LOW;
-  const catColor = CAT_COLORS[brk.category] || C.g500;
+  const catColor = CAT_COLORS[normCat(brk.category)] || C.g500;
 
   return (
     <div className="border border-g-200 rounded-[10px] overflow-hidden mb-2 bg-white">
@@ -263,7 +399,11 @@ function BreakDetailCard({ brk }) {
           {brk.severity}
         </span>
         <span className="text-[11px] font-mono text-g-700 font-medium">{brk.break_id}</span>
-        <span className="text-[11px] font-mono" style={{ color: catColor }}>{brk.category?.replace(/_/g, ' ')}</span>
+        {brk.category && (
+          <span className="text-[11px]">
+            <CategoryLabel category={brk.category} color={catColor} />
+          </span>
+        )}
         {brk.table_assignment && (
           <span className="text-[10px] font-mono text-g-400 ml-auto">table {brk.table_assignment}</span>
         )}
@@ -417,11 +557,13 @@ function RunRow({ run, isExpanded, onToggle }) {
                 /* Fallback: show categories if full detail lacks breaks */
                 <div className="space-y-1.5">
                   {run.categories.map((cat) => {
-                    const c = CAT_COLORS[cat] || C.g500;
+                    const c = CAT_COLORS[normCat(cat)] || C.g500;
                     return (
                       <div key={cat} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-g-200">
                         <div className="w-1.5 h-1.5 rounded-full" style={{ background: c }} />
-                        <span className="text-[12px] font-mono" style={{ color: c }}>{cat.replace(/_/g, ' ')}</span>
+                        <span className="text-[12px]">
+                          <CategoryLabel category={cat} color={c} />
+                        </span>
                       </div>
                     );
                   })}
@@ -581,14 +723,14 @@ function RecurringBreaks({ runs }) {
   return (
     <div className="space-y-2">
       {entries.slice(0, 5).map((e) => {
-        const color = CAT_COLORS[e.category] || C.g500;
+        const color = CAT_COLORS[normCat(e.category)] || C.g500;
         const age = fmtDays(e.firstSeen, e.lastSeen);
         return (
           <div key={e.category} className="rounded-lg bg-white border border-g-200 px-3 py-2.5">
             <div className="flex items-center gap-2 mb-1.5">
               <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: color }} />
-              <span className="text-[11px] font-mono font-medium" style={{ color }}>
-                {e.category.replace(/_/g, ' ')}
+              <span className="text-[11px] font-medium">
+                <CategoryLabel category={e.category} color={color} />
               </span>
               {e.recurring && (
                 <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full ml-auto"
@@ -673,31 +815,109 @@ export default function Observatory({ reportType, reconPhase }) {
     <div className="p-6">
       {/* Stat cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <StatCard label="Latest score" value={latestScore.toFixed(0)} sub={scoreLabel(latestScore)} color={scoreColor(latestScore)} />
-        <StatCard label="Avg score" value={avgScore.toFixed(1)} color={scoreColor(avgScore)} sub={`${runs.length} runs`} />
-        <StatCard label="Total breaks" value={totalBreaks} sub={`across ${runs.length} runs`} />
-        <StatCard label="5-day trend" value={`${trendDelta >= 0 ? '+' : ''}${trendDelta.toFixed(1)}`} sub={trendDelta >= 0 ? 'Improving' : 'Declining'} color={trendDelta >= 0 ? C.green : C.red} />
+        <StatCard
+          label="Latest score"
+          value={latestScore.toFixed(0)}
+          sub={scoreLabel(latestScore)}
+          color={scoreColor(latestScore)}
+          info={
+            'Score for the most recent reconciliation run, on a scale of 0–100. ' +
+            'It starts at 100 and is reduced by each break — HIGH breaks cost more than ' +
+            'MEDIUM, and breaks with bigger dollar impact cost more than small ones. ' +
+            '80 or above is "Healthy" (safe to file). 60 to 79 is "Needs attention" ' +
+            '(file with exceptions). Below 60 is "Critical" (do not file).'
+          }
+        />
+        <StatCard
+          label="Avg score"
+          value={avgScore.toFixed(1)}
+          color={scoreColor(avgScore)}
+          sub={`${runs.length} runs`}
+          info={
+            'Average of the scores across every run shown for this report type. ' +
+            'A high average means reconciliation quality is consistent over time; a low one ' +
+            'means problems keep coming back, even if individual days look OK.'
+          }
+        />
+        <StatCard
+          label="Total breaks"
+          value={totalBreaks}
+          sub={`across ${runs.length} runs`}
+          info={
+            'Sum of every break across all visible runs. A "break" is any case where ' +
+            'Snowflake (the source of truth) and AxiomSL (the regulatory engine) disagree — ' +
+            'a different amount, a missing position, or a stale reference value.'
+          }
+        />
+        <StatCard
+          label="5-day trend"
+          value={`${trendDelta >= 0 ? '+' : ''}${trendDelta.toFixed(1)}`}
+          sub={trendDelta >= 0 ? 'Improving' : 'Declining'}
+          color={trendDelta >= 0 ? C.green : C.red}
+          info={
+            'Average score for the most recent 5 runs minus the average of the 5 runs before ' +
+            'that. A positive number (green) means quality is getting better. A negative ' +
+            'number (red) means it is getting worse — even if today looks fine.'
+          }
+        />
       </div>
 
       {/* Charts row 1: Score trend + Break severity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-        <ChartSection title="Score trend">
+        <ChartSection
+          title="Score trend"
+          info={
+            'Reconciliation score plotted day by day. Each dot is one run — green for ' +
+            'Healthy (80+), amber for Needs attention (60–79), red for Critical (under 60). ' +
+            'Click any dot to expand that day\'s details in the list below.'
+          }
+        >
           <ScoreTrendChart data={sorted} onSelectDate={setExpandedDate} selectedDate={expandedDate} />
         </ChartSection>
-        <ChartSection title="Breaks by severity">
+        <ChartSection
+          title="Breaks by severity"
+          info={
+            'Stacked bars showing how many HIGH (red), MEDIUM (amber), and LOW (grey) ' +
+            'breaks each run produced. A tall bar means many breaks; a tall red section ' +
+            'means filing is at risk. Hover any bar to see the exact counts.'
+          }
+        >
           <BreakSeverityChart data={sorted} />
         </ChartSection>
       </div>
 
       {/* Charts row 2: Notional impact + Category frequency + Severity reference */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-        <ChartSection title="Notional impact">
+        <ChartSection
+          title="Notional impact"
+          info={
+            'Total dollar value affected by breaks each day. Only includes breaks where ' +
+            'we can actually quantify the impact (for example, FX rate mismatches on a ' +
+            'known notional amount). Breaks that drop or misclassify positions are counted ' +
+            'in "Breaks by severity" but typically don\'t produce a dollar figure here.'
+          }
+        >
           <ImpactTrendChart data={sorted} />
         </ChartSection>
-        <ChartSection title="Break categories">
+        <ChartSection
+          title="Break categories"
+          info={
+            'How often each kind of break appeared across all visible runs. Categories ' +
+            'are root-cause buckets — for example, FX rate source mismatch, stale HQLA ' +
+            'reference data, counterparty sync lag, silent ingestion exclusion. The category ' +
+            'at the top is the most common problem to fix first.'
+          }
+        >
           <CategoryChart data={runs} />
         </ChartSection>
-        <ChartSection title="Severity classification">
+        <ChartSection
+          title="Severity classification"
+          info={
+            'How the engine decides whether a break is HIGH, MEDIUM, or LOW. The decision ' +
+            'is based on three things: the dollar value affected, whether the break puts ' +
+            'the regulatory filing at risk, and the break category itself.'
+          }
+        >
           <SeverityReference />
         </ChartSection>
       </div>
@@ -721,10 +941,26 @@ export default function Observatory({ reportType, reconPhase }) {
 
         {/* Right: stacked business panels */}
         <div className="space-y-4">
-          <ChartSection title="Filing readiness">
+          <ChartSection
+            title="Filing readiness"
+            info={
+              'Are we OK to file the regulatory report today? Combines the latest score, ' +
+              'the number of open HIGH breaks, and the time left until the next deadline. ' +
+              'Green = ready, amber = file with exceptions (HIGH or MEDIUM breaks need ' +
+              'sign-off), red = blocked (do not file until breaks are resolved).'
+            }
+          >
             <FilingReadiness runs={runs} />
           </ChartSection>
-          <ChartSection title="Recurring breaks · last 20 runs">
+          <ChartSection
+            title="Recurring breaks · last 20 runs"
+            info={
+              'Break categories that have appeared in 3 or more of the last 20 runs. ' +
+              'These are flagged as RECURRING because they are likely systemic issues — ' +
+              'a config drift, a broken upstream feed, or a missing reference data refresh — ' +
+              'rather than one-off data hiccups.'
+            }
+          >
             <RecurringBreaks runs={runs} />
           </ChartSection>
         </div>

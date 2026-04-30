@@ -8,19 +8,20 @@ import os
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 from core.config import ReconConfig
-from chat.agents import data_analyst, regulatory_expert, pipeline_operator, supervisor
+from chat.agents import data_analyst, regulatory_expert, pipeline_operator, supervisor, remediation_expert
 
 
 def build_chat_agent(config: ReconConfig, checkpointer=None):
     """Build the multi-agent chat system.
 
-    Creates three stateless specialists (Haiku) and wires them into a
+    Creates four stateless specialists (Haiku) and wires them into a
     supervisor (Sonnet) that routes requests and synthesizes responses.
     """
     specialists = {
         "data_analyst":       data_analyst.build(config),
         "regulatory_expert":  regulatory_expert.build(config),
         "pipeline_operator":  pipeline_operator.build(config),
+        "remediation_expert": remediation_expert.build(config),
     }
     return supervisor.build(config, specialists, checkpointer)
 

@@ -17,17 +17,19 @@ from langchain_core.tools import tool
 _data_analyst = None
 _regulatory_expert = None
 _pipeline_operator = None
+_remediation_expert = None
 
 # Per-specialist timeout — prevents hanging if LLM or tool is unresponsive
 SPECIALIST_TIMEOUT_SECONDS = 120
 
 
-def set_specialists(data_analyst, regulatory_expert, pipeline_operator):
+def set_specialists(data_analyst, regulatory_expert, pipeline_operator, remediation_expert):
     """Inject built specialist agents for the ask_* tools to dispatch to."""
-    global _data_analyst, _regulatory_expert, _pipeline_operator
+    global _data_analyst, _regulatory_expert, _pipeline_operator, _remediation_expert
     _data_analyst = data_analyst
     _regulatory_expert = regulatory_expert
     _pipeline_operator = pipeline_operator
+    _remediation_expert = remediation_expert
 
 
 def _extract_text(content) -> str:
@@ -97,4 +99,14 @@ async def ask_pipeline_operator(question: str) -> str:
     return await _invoke_specialist(_pipeline_operator, question)
 
 
-TOOLS = [ask_data_analyst, ask_regulatory_expert, ask_pipeline_operator]
+@tool
+async def ask_remediation_expert(question: str) -> str:
+    """Delegate a remediation request to the Remediation Expert specialist.
+    Use this for: proposing AxiomSL mapping fixes, generating data adjustment SQL logic (Snowflake/DuckDB),
+    or drafting JIRA tickets for data engineering pipelines.
+    question: the detailed context of the break and the request for remediation
+    """
+    return await _invoke_specialist(_remediation_expert, question)
+
+
+TOOLS = [ask_data_analyst, ask_regulatory_expert, ask_pipeline_operator, ask_remediation_expert]

@@ -22,8 +22,11 @@ build/
 **/data/output/*.db-wal
 **/data/output/.scenario_counter
 **/data/output/break_report_*.json
+**/data/output/remediation/
 **/data/snowflake/*.duckdb
 **/data/axiomsl/*.log
+**/data/telemetry/
+**/data/llm_metrics.json
 
 # Node
 node_modules/

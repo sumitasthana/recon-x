@@ -5,7 +5,6 @@ import json
 import os
 import glob
 import time
-import random
 import structlog
 import duckdb
 from datetime import datetime, timedelta
@@ -25,9 +24,25 @@ from core.logging_config import configure_logging
 from skills.builtin.platform_snowflake.scripts.data_scaffold import ensure_database
 from reports.fr2590.data_scaffold import ensure_fr2590_tables, create_axiomsl_test_data
 
-from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+from langchain_core.messages import HumanMessage
 from chat.chat_agent import build_chat_agent, create_checkpointer_context
 from llm.client import record_call
+
+
+async def _seed_observatory_background(output_path: str):
+    """Run the observatory history seed off the event loop thread.
+
+    Fire-and-forget: per-date failures are logged inside _seed_real_history,
+    and any unexpected error bubbling out is caught here so the task doesn't
+    silently swallow exceptions.
+    """
+    log = structlog.get_logger()
+    try:
+        log.info("observatory.background_seed.start")
+        await asyncio.to_thread(_seed_real_history, output_path)
+        log.info("observatory.background_seed.complete")
+    except Exception as e:
+        log.exception("observatory.background_seed.failed", error=str(e))
 
 
 @asynccontextmanager
@@ -36,6 +51,12 @@ async def lifespan(app: FastAPI):
     # Initialise durable SQLite checkpointer (survives restarts)
     async with create_checkpointer_context() as checkpointer:
         app.state.checkpointer = checkpointer
+        # Pre-seed Observatory history in the background so the first
+        # GET /api/observatory doesn't trigger ~20 pipeline runs inline.
+        seed_config = ReconConfig()
+        app.state.observatory_seed_task = asyncio.create_task(
+            _seed_observatory_background(seed_config.output_path)
+        )
         yield
 
 
@@ -128,23 +149,17 @@ def get_report_steps(report_id: str):
     return plugin.steps_metadata()
 
 
-def _resolve_scenario() -> str:
-    """Auto-cycle through scenarios s1-s5 round-robin.
+def _resolve_scenario(report_date: str) -> str:
+    """Assign scenario deterministically from report_date.
 
-    Persists a counter in data/output/.scenario_counter so each run
-    picks the next scenario automatically.
+    Same date always → same scenario. Realistic: a given trading day
+    has a fixed break profile; re-running the same date is idempotent.
+    Uses MD5 hash so distribution across scenarios is uniform.
     """
+    from hashlib import md5
     from core.config import SCENARIOS
-    counter_path = os.path.join("data", "output", ".scenario_counter")
-    try:
-        with open(counter_path) as f:
-            idx = int(f.read().strip())
-    except (FileNotFoundError, ValueError):
-        idx = 0
-    scenario = SCENARIOS[idx % len(SCENARIOS)]
-    with open(counter_path, "w") as f:
-        f.write(str((idx + 1) % len(SCENARIOS)))
-    return scenario
+    idx = int(md5(report_date.encode()).hexdigest(), 16) % len(SCENARIOS)
+    return SCENARIOS[idx]
 
 
 # Mapping from scenario_id to AxiomSL XML config file (FR 2052a)
@@ -181,8 +196,8 @@ async def run_recon(request: ReconRequest):
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    # Resolve scenario — "auto" cycles through s1-s5
-    scenario = _resolve_scenario()
+    # Resolve scenario deterministically from report_date
+    scenario = _resolve_scenario(request.report_date)
 
     config = ReconConfig(
         report_type=request.report_type,
@@ -411,9 +426,10 @@ async def chat(request: ChatRequest):
 
                 yield {"event": "done", "data": json.dumps({})}
                 log.info("chat.complete", tokens=token_count)
-
-                # Record metrics for Platform dashboard
-                record_call("supervisor", input_tokens=token_count * 4)
+                # Metrics for both supervisor and specialist tiers are
+                # recorded via MetricsCallbackHandler attached at the LLM
+                # factory in llm/client.py — every invoke/ainvoke is
+                # captured with real Bedrock usage_metadata.
 
             except asyncio.TimeoutError:
                 log.warning("chat.timeout", timeout=CHAT_TIMEOUT_SECONDS)
@@ -478,7 +494,7 @@ def _enrich_break_with_rules(brk: dict, report_id: str) -> dict:
     # Base enriched break
     enriched = {
         **brk,
-        "detection_method": "Automated reconciliation + AI classification",
+        "detection_method": "Automated reconciliation",
         "rules": [],
         "lineage": {},
         "failed_records_sample": []
@@ -798,105 +814,77 @@ def _scan_reports(output_path: str = "data/output") -> list[dict]:
     return runs
 
 
-def _seed_demo_history(output_path: str = "data/output"):
-    """Generate synthetic historical reports so Observatory is never empty.
+def _seed_real_history(output_path: str = "data/output", days_back: int = 20):
+    """Run the actual recon pipeline for the last N business days.
 
-    Seeds business-day reports for the last 20 weekdays ending at today.
-    Skips dates that already have a report (real runs are never overwritten).
+    Skips dates that already have a report on disk (real runs are never
+    overwritten). Uses date-driven scenario assignment so results are
+    deterministic and reproducible.
     """
+    from core.config import ReconConfig
+    from core.graph import build_graph
+    from core.state import ReconState
+    from skills.builtin.platform_snowflake.scripts.data_scaffold import ensure_database
+
+    log = structlog.get_logger()
     os.makedirs(output_path, exist_ok=True)
 
-    break_templates = [
-        {
-            "break_id": "BRK-001", "category": "FX_RATE_SOURCE_MISMATCH",
-            "severity": "HIGH", "table_assignment": "T5",
-            "description": "FX rate source mismatch between source and target data",
-            "root_cause": "Source and target systems using different FX rate sources",
-            "recommended_action": "Align FX rate sources between systems",
-        },
-        {
-            "break_id": "BRK-002", "category": "HQLA_REF_STALE",
-            "severity": "HIGH", "table_assignment": "T2",
-            "description": "HQLA reference data is stale, causing incorrect security classifications",
-            "root_cause": "HQLA eligibility file not updated since last business day",
-            "recommended_action": "Refresh HQLA reference data from DTCC feed",
-        },
-        {
-            "break_id": "BRK-003", "category": "CPTY_REF_SYNC_LAG",
-            "severity": "MEDIUM", "table_assignment": "T6",
-            "description": "Counterparty LEIs present in source but missing in target",
-            "root_cause": "LEI sync between counterparty master and AxiomSL delayed",
-            "recommended_action": "Trigger manual LEI sync and verify counterparty mappings",
-        },
-        {
-            "break_id": "BRK-004", "category": "SILENT_EXCLUSION",
-            "severity": "MEDIUM", "table_assignment": "T6",
-            "description": "Positions silently excluded by ingestion filters in target system",
-            "root_cause": "Silent filter FWD_START_NULL_EXCL excluding valid positions",
-            "recommended_action": "Review filter configuration and add audit logging",
-        },
-    ]
-
-    rng = random.Random(42)
-    base_date = datetime.now()  # Always seed relative to today
-
-    for day_offset in range(-20, 1):
-        d = base_date + timedelta(days=day_offset)
-        # Skip weekends
+    base_date = datetime.now()
+    dates_to_seed = []
+    for offset in range(-days_back, 0):
+        d = base_date + timedelta(days=offset)
         if d.weekday() >= 5:
             continue
-
         date_str = d.strftime("%Y-%m-%d")
         path = os.path.join(output_path, f"break_report_fr2052a_{date_str}.json")
-        if os.path.exists(path):
+        if not os.path.exists(path):
+            dates_to_seed.append(date_str)
+
+    if not dates_to_seed:
+        return
+
+    log.info("observatory.seeding", dates=len(dates_to_seed))
+    graph = build_graph("fr2052a")
+
+    for date_str in dates_to_seed:
+        try:
+            scenario = _resolve_scenario(date_str)
+            config = ReconConfig(
+                report_type="fr2052a",
+                report_date=date_str,
+                scenario_id=scenario,
+            )
+            config.client_schema.axiomsl.config_file = SCENARIO_XML.get(scenario, "fr2052a_config.xml")
+            ensure_database(config)
+
+            from reports.fr2052a.data_scaffold import create_axiomsl_test_data
+            create_axiomsl_test_data(config)
+
+            initial_state = ReconState(config=config)
+            for chunk in graph.stream(initial_state):
+                for node_name, node_output in chunk.items():
+                    if node_name == "classify" and "report" in node_output:
+                        report = node_output["report"]
+                        report_path = os.path.join(output_path, f"break_report_fr2052a_{date_str}.json")
+                        with open(report_path, "w") as f:
+                            f.write(report.model_dump_json(indent=2))
+                        log.info("observatory.date_seeded", date=date_str, scenario=scenario, score=report.recon_score)
+
+        except Exception as e:
+            log.warning("observatory.seed_failed", date=date_str, error=str(e))
             continue
-
-        # Simulate improving score over time with some variance
-        trend = min(0.7, (day_offset + 20) / 25)  # 0 → 0.7 over the range
-        base_score = 35 + trend * 45  # 35 → 80
-        noise = rng.gauss(0, 8)
-        score = max(10, min(95, base_score + noise))
-
-        # Pick a subset of breaks — fewer as score improves
-        if score >= 80:
-            active_breaks = rng.sample(break_templates, k=rng.randint(0, 1))
-        elif score >= 60:
-            active_breaks = rng.sample(break_templates, k=rng.randint(1, 2))
-        else:
-            active_breaks = rng.sample(break_templates, k=rng.randint(2, 4))
-
-        breaks = []
-        for bt in active_breaks:
-            b = dict(bt)
-            b["source_count"] = rng.randint(3, 20)
-            b["target_count"] = rng.randint(0, b["source_count"])
-            b["notional_impact_usd"] = round(rng.uniform(5e5, 2e8), 2)
-            breaks.append(b)
-
-        sev_summary = {}
-        for b in breaks:
-            sev_summary[b["severity"]] = sev_summary.get(b["severity"], 0) + 1
-        sev_str = ", ".join(f"{v} {k.lower()}" for k, v in sev_summary.items())
-
-        report = {
-            "report_date": date_str,
-            "report_type": "fr2052a",
-            "total_breaks": len(breaks),
-            "breaks": breaks,
-            "recon_score": round(score, 1),
-            "summary": f"Score: {score:.1f}/100 | {len(breaks)} break(s) ({sev_str or 'none'})",
-            "method": "LLM_CLASSIFIED",
-        }
-
-        with open(path, "w") as f:
-            json.dump(report, f, indent=2)
 
 
 @app.get("/api/observatory")
 def get_observatory():
-    """Get historical run data for the observatory dashboard."""
+    """Get historical run data for the observatory dashboard.
+
+    Seeding happens in the background at server startup (see lifespan),
+    so this endpoint just reads whatever reports are on disk. If the
+    background seed is still in flight, callers see a partial history
+    and a subsequent refresh will show the rest.
+    """
     config = ReconConfig()
-    _seed_demo_history(config.output_path)
     runs = _scan_reports(config.output_path)
     return runs
 
@@ -945,15 +933,76 @@ def update_prompt(name: str, request: PromptUpdateRequest):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+# ---------- Platform: Agents ----------
+
+# model_tier in each prompt.yaml drives which Bedrock model is used and how
+# the agent is grouped in the Agent Observatory UI.
+_AGENT_MODEL_FOR_TIER = {
+    "supervisor": "Claude 3.5 Sonnet",
+    "specialist": "Claude 3 Haiku",
+    "classifier": "Claude 3 Haiku",
+}
+_AGENT_GROUP_FOR_TIER = {
+    "supervisor": "chat",
+    "specialist": "chat",
+    "classifier": "classifier",
+}
+
+
+def _humanize_agent_name(name: str) -> str:
+    return name.replace("_", " ").title()
+
+
+def _abbr_agent_name(name: str) -> str:
+    parts = [p for p in name.split("_") if p]
+    return "".join(p[0].upper() for p in parts)[:3] or "?"
+
+
+@app.get("/api/platform/agents")
+def list_agents():
+    """List all agents auto-discovered from chat/agents/<name>/prompt.yaml
+    and reports/<name>/classify_prompt.yaml. Add a new prompt.yaml and the
+    agent appears here automatically — no UI change required.
+    """
+    agents = []
+    for p in get_prompt_loader().list_prompts():
+        tier = p.get("model_tier", "specialist")
+        agents.append({
+            "id": p["name"],
+            "name": _humanize_agent_name(p["name"]),
+            "abbr": _abbr_agent_name(p["name"]),
+            "tier": _AGENT_GROUP_FOR_TIER.get(tier, "chat"),
+            "model_tier": tier,
+            "model": _AGENT_MODEL_FOR_TIER.get(tier, "—"),
+            "description": p.get("description", ""),
+            "tags": p.get("tags", []),
+            "version": p.get("version", ""),
+            "file": p.get("file", ""),
+        })
+    # supervisor first, then chat specialists, then classifiers, alpha within
+    tier_order = {"supervisor": 0, "specialist": 1, "classifier": 2}
+    agents.sort(key=lambda a: (tier_order.get(a["model_tier"], 9), a["id"]))
+    return agents
+
+
 # ---------- Platform Metrics ----------
 
 from llm.client import get_metrics as get_llm_metrics
+from llm.client import reset_metrics as reset_llm_metrics
 
 
 @app.get("/api/platform/metrics")
 def platform_metrics():
     """Return LLM budget, caching, and call metrics for the Platform dashboard."""
     return get_llm_metrics()
+
+
+@app.post("/api/platform/metrics/reset")
+def platform_metrics_reset():
+    """Manually zero the LLM cost counters. Counters never reset on their
+    own — backend restarts preserve them, and only this explicit endpoint
+    (driven by the user clicking 'Reset counters' in the UI) clears them."""
+    return reset_llm_metrics()
 
 
 # ---------- Skills ----------
@@ -1020,34 +1069,193 @@ def _load_skill_registry():
     return entries
 
 
-@app.get("/api/skills")
-def list_skills():
-    """List all registered skill files with metadata."""
+# ---------- Skills Observatory ----------
+#
+# /api/skills           — list of SkillSummary (richer than legacy shape)
+# /api/skills/health    — SkillsHealthSummary (top-of-page tiles)
+# /api/skills/{id}      — SkillDetail (slide-over panel data)
+# /api/skills/{id}/content   — raw text/markdown
+# /api/breaks/{id}/skills    — list of SkillInvocation for cross-link
+
+from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+from fastapi.responses import PlainTextResponse
+
+from telemetry import store as _telstore
+from telemetry.models import (
+    SkillSummary, SkillDetail, SkillsHealthSummary, TriggerStats,
+)
+
+
+def _now_utc_naive() -> _dt:
+    """Naive UTC. DuckDB's TIMESTAMP column is tz-naive — using
+    tz-aware datetimes leads to TypeError on Python-side comparisons
+    after read-back. Keep the boundary clean."""
+    return _dt.now(_tz.utc).replace(tzinfo=None)
+
+
+_TIER_NAME_MAP = {
+    "Base":     "baseline",
+    "Platform": "platform",
+    "Domain":   "domain",
+    "Client":   "client",
+}
+
+# Per-config; defaults to 30. Spec calls this "skills_stale_days".
+_STALE_DAYS = int(os.environ.get("RECONX_SKILLS_STALE_DAYS", "30"))
+
+
+def _entry_to_summary(entry, now):
+    """Compose a SkillSummary by joining a registry entry with telemetry."""
+    sid = entry["id"]
+    triggers = entry.get("trigger_patterns", [])
+    tier = _TIER_NAME_MAP.get(entry.get("tier", "Base"), "domain")
+
+    hits_24h = _telstore.hits_in_window(sid, 24, now)
+    hits_7d = _telstore.hits_in_window(sid, 24 * 7, now)
+    last_fired = _telstore.last_fired(sid)
+
+    # Stale: no hits in stale-window AND not baseline (baseline always loads,
+    # so staleness doesn't apply).
+    is_stale = False
+    if tier != "baseline":
+        cutoff_stale = now - _td(days=_STALE_DAYS)
+        is_stale = (last_fired is None) or (last_fired < cutoff_stale)
+
+    # Dead triggers: any trigger with zero matches in 7d
+    has_dead = False
+    if triggers:
+        match_counts = _telstore.trigger_match_counts(sid, triggers, now)
+        for t in triggers:
+            if t == "*":
+                continue
+            if match_counts.get(t, {}).get("7d", 0) == 0:
+                has_dead = True
+                break
+
+    # chunk_count is best-effort; without instrumenting the FAISS index
+    # we don't know per-skill chunk counts, so report 0 honestly.
+    return SkillSummary(
+        skill_id=sid,
+        name=sid.replace("_", " ").title(),
+        tier=tier,
+        priority=entry.get("priority", 0),
+        description=entry.get("description", ""),
+        file_size_bytes=entry.get("size_bytes", 0),
+        chunk_count=0,
+        triggers=triggers,
+        hits_24h=hits_24h,
+        hits_7d=hits_7d,
+        last_fired=last_fired,
+        updated_at=_dt.fromisoformat(entry["last_modified"]) if entry.get("last_modified") else None,
+        is_stale=is_stale,
+        has_dead_triggers=has_dead,
+    )
+
+
+@app.get("/api/skills/health", response_model=SkillsHealthSummary)
+def skills_health():
+    """Top-of-page tiles: active / fired_24h / stale / errors."""
+    now = _now_utc_naive()
     entries = _load_skill_registry()
-    # Strip internal path from response
-    return [{k: v for k, v in e.items() if k != "path"} for e in entries]
+    fired = _telstore.skills_with_hits_in_window(24, now)
+
+    fired_count = sum(1 for e in entries if e["id"] in fired)
+    stale_count = 0
+    cutoff = now - _td(days=_STALE_DAYS)
+    for e in entries:
+        tier = _TIER_NAME_MAP.get(e.get("tier", "Base"), "domain")
+        if tier == "baseline":
+            continue
+        last = _telstore.last_fired(e["id"])
+        if last is None or last < cutoff:
+            stale_count += 1
+
+    return SkillsHealthSummary(
+        active_count=len(entries),
+        fired_24h_count=fired_count,
+        stale_count=stale_count,
+        # error_count is wired for future use — surfaced as 0 until we
+        # capture retrieval / load errors as their own telemetry events.
+        error_count=0,
+    )
 
 
-@app.get("/api/skills/{skill_id}")
+@app.get("/api/skills", response_model=list[SkillSummary])
+def list_skills():
+    """List all registered skills with operational metrics.
+
+    Per-skill exceptions are caught and logged so a single bad row
+    can't take down the whole list (a single Pydantic validation
+    failure used to 500 the entire endpoint, leaving the UI with
+    an empty array and no error surface)."""
+    _log = structlog.get_logger()
+    now = _now_utc_naive()
+    out: list[SkillSummary] = []
+    for e in _load_skill_registry():
+        try:
+            out.append(_entry_to_summary(e, now))
+        except Exception as ex:
+            _log.warning("skills.summary_failed",
+                         skill_id=e.get("id", "?"), error=str(ex))
+    return out
+
+
+@app.get("/api/skills/{skill_id}", response_model=SkillDetail)
 def get_skill(skill_id: str):
-    """Get a skill file's full content and metadata."""
+    """Full detail for the slide-over panel."""
+    now = _now_utc_naive()
     entries = _load_skill_registry()
     entry = next((e for e in entries if e["id"] == skill_id), None)
     if not entry:
         raise HTTPException(status_code=404, detail=f"Skill '{skill_id}' not found")
 
-    with open(entry["path"], encoding="utf-8") as f:
-        content = f.read()
+    summary = _entry_to_summary(entry, now)
+    triggers = entry.get("trigger_patterns", [])
+    match_counts = _telstore.trigger_match_counts(skill_id, triggers, now) if triggers else {}
+    trigger_stats = [
+        TriggerStats(
+            trigger=t,
+            match_count_24h=match_counts.get(t, {}).get("24h", 0),
+            match_count_7d=match_counts.get(t, {}).get("7d", 0),
+            last_matched=match_counts.get(t, {}).get("last"),
+        )
+        for t in triggers
+    ]
+    recent = _telstore.recent_invocations(skill_id, limit=25)
 
-    return {
-        "id": entry["id"],
-        "filename": entry["filename"],
-        "tier": entry["tier"],
-        "content": content,
-        "size_bytes": entry["size_bytes"],
-        "last_modified": entry["last_modified"],
-        "trigger_patterns": entry["trigger_patterns"],
-    }
+    # 500-char preview of SKILL.md
+    try:
+        with open(entry["path"], encoding="utf-8") as f:
+            content = f.read()
+    except Exception:
+        content = ""
+    preview = content[:500]
+
+    return SkillDetail(
+        summary=summary,
+        trigger_stats=trigger_stats,
+        recent_invocations=recent,
+        content_preview=preview,
+        content_full_url=f"/api/skills/{skill_id}/content",
+        version_history=[],  # not tracked; surfaced as empty per spec
+    )
+
+
+@app.get("/api/skills/{skill_id}/content", response_class=PlainTextResponse)
+def get_skill_content(skill_id: str):
+    """Raw SKILL.md content as text/markdown."""
+    entries = _load_skill_registry()
+    entry = next((e for e in entries if e["id"] == skill_id), None)
+    if not entry:
+        raise HTTPException(status_code=404, detail=f"Skill '{skill_id}' not found")
+    with open(entry["path"], encoding="utf-8") as f:
+        return PlainTextResponse(content=f.read(), media_type="text/markdown")
+
+
+@app.get("/api/breaks/{break_id}/skills")
+def break_skills(break_id: str):
+    """All skill invocations associated with a particular BRK-### id."""
+    return [inv.model_dump(mode="json") for inv in _telstore.invocations_for_break(break_id)]
 
 
 @app.put("/api/skills/{skill_id}")
@@ -1204,6 +1412,282 @@ def _serialize_value(val):
     if isinstance(val, (int, float, bool, str)):
         return val
     return str(val)
+
+
+# ---------- Remediation actions ----------
+#
+# Three contained side-effects, each behind a dry_run/confirm gate:
+#   1. apply_sql      → executes UPDATE/INSERT against the local DuckDB
+#                       inside a transaction; safety check rejects DDL/DELETE.
+#   2. create_jira    → writes a JIRA payload draft to disk (no real Jira
+#                       network call); returns a draft issue key.
+#   3. push_mapping   → writes an AxiomSL mapping proposal XML to disk
+#                       (does NOT edit the live config).
+#
+# All actions append to data/output/remediation/audit.jsonl so the UI can
+# show what's been done per break_id via GET /api/remediation/audit.
+
+import threading
+import uuid
+
+REMEDIATION_DIR = os.path.join("data", "output", "remediation")
+REMEDIATION_AUDIT_FILE = os.path.join(REMEDIATION_DIR, "audit.jsonl")
+_remediation_db_lock = threading.Lock()
+
+
+def _remediation_audit(action: str, break_id: str, status: str, payload: dict, result: dict) -> str:
+    """Append an audit entry; return its id."""
+    os.makedirs(REMEDIATION_DIR, exist_ok=True)
+    audit_id = uuid.uuid4().hex[:12]
+    entry = {
+        "audit_id": audit_id,
+        "ts": datetime.utcnow().isoformat() + "Z",
+        "action": action,
+        "break_id": break_id,
+        "status": status,
+        "payload": payload,
+        "result": result,
+    }
+    with open(REMEDIATION_AUDIT_FILE, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
+    return audit_id
+
+
+_SQL_ALLOWED_PREFIXES = ("UPDATE", "INSERT")
+_SQL_FORBIDDEN_TOKENS = (
+    " DROP ", " DELETE ", " TRUNCATE", " ALTER ", " CREATE ",
+    " GRANT ", " REVOKE ", " ATTACH ", " DETACH ", " COPY ",
+)
+
+
+def _validate_remediation_sql(sql: str) -> str:
+    """Strict allow-list: single UPDATE or INSERT statement, no DDL/DELETE."""
+    sql_clean = sql.strip().rstrip(";").strip()
+    while sql_clean.startswith("--"):
+        sql_clean = sql_clean.split("\n", 1)[1].strip() if "\n" in sql_clean else ""
+    while sql_clean.startswith("/*"):
+        end = sql_clean.find("*/")
+        if end == -1:
+            raise ValueError("Unterminated block comment")
+        sql_clean = sql_clean[end + 2:].strip()
+    if not sql_clean:
+        raise ValueError("Empty SQL")
+    if ";" in sql_clean:
+        raise ValueError("Only a single statement is allowed")
+    upper = " " + sql_clean.upper() + " "
+    head = sql_clean.split(None, 1)[0].upper()
+    if head not in _SQL_ALLOWED_PREFIXES:
+        raise ValueError(f"Only UPDATE or INSERT statements allowed (got {head})")
+    for tok in _SQL_FORBIDDEN_TOKENS:
+        if tok in upper:
+            raise ValueError(f"SQL contains forbidden token: {tok.strip()}")
+    return sql_clean
+
+
+class ApplySqlRequest(BaseModel):
+    break_id: str
+    sql: str
+    confirm: bool = False
+    report_id: str = "fr2052a"
+
+
+@app.post("/api/remediation/apply_sql")
+def apply_sql(req: ApplySqlRequest):
+    """Validate & optionally execute a SQL fix against the local DuckDB.
+    With confirm=False, the SQL is parsed/validated and the plan returned
+    without execution. With confirm=True, the statement runs inside a
+    transaction; rollback on error.
+    """
+    try:
+        sql_clean = _validate_remediation_sql(req.sql)
+    except ValueError as e:
+        audit_id = _remediation_audit(
+            "apply_sql", req.break_id, "rejected",
+            {"sql": req.sql, "confirm": req.confirm}, {"error": str(e)},
+        )
+        raise HTTPException(status_code=400, detail={"error": str(e), "audit_id": audit_id})
+
+    config = ReconConfig(report_type=req.report_id)
+    db_path = config.db_path
+
+    if not req.confirm:
+        audit_id = _remediation_audit(
+            "apply_sql", req.break_id, "dry_run",
+            {"sql": sql_clean, "db_path": db_path}, {"validated": True},
+        )
+        return {
+            "status": "dry_run",
+            "message": "SQL validated. Re-submit with confirm=true to execute.",
+            "sql": sql_clean,
+            "db_path": db_path,
+            "audit_id": audit_id,
+        }
+
+    # Confirmed → execute inside a transaction
+    with _remediation_db_lock:
+        conn = duckdb.connect(db_path)
+        try:
+            conn.execute("BEGIN TRANSACTION")
+            conn.execute(sql_clean)
+            conn.execute("COMMIT")
+            audit_id = _remediation_audit(
+                "apply_sql", req.break_id, "applied",
+                {"sql": sql_clean, "db_path": db_path}, {"executed": True},
+            )
+            return {
+                "status": "applied",
+                "message": "SQL executed and committed.",
+                "sql": sql_clean,
+                "db_path": db_path,
+                "audit_id": audit_id,
+            }
+        except Exception as e:
+            try:
+                conn.execute("ROLLBACK")
+            except Exception:
+                pass
+            audit_id = _remediation_audit(
+                "apply_sql", req.break_id, "error",
+                {"sql": sql_clean, "db_path": db_path}, {"error": str(e)},
+            )
+            raise HTTPException(status_code=500, detail={"error": str(e), "audit_id": audit_id})
+        finally:
+            conn.close()
+
+
+class CreateJiraRequest(BaseModel):
+    break_id: str
+    summary: str
+    details: str
+    break_type: str = "Reconciliation Break"
+    priority: str = "Medium"
+    confirm: bool = False
+
+
+@app.post("/api/remediation/create_jira")
+def create_jira(req: CreateJiraRequest):
+    """Write a JIRA ticket draft to disk. No real Jira call is made — this
+    persists the payload as JSON so an integration job can pick it up.
+    """
+    payload = {
+        "fields": {
+            "project": {"key": "RECON"},
+            "summary": f"[{req.break_type}] {req.summary}",
+            "description": req.details,
+            "issuetype": {"name": "Bug"},
+            "priority": {"name": req.priority},
+            "labels": ["reconx-generated", "break-remediation", req.break_id],
+        }
+    }
+
+    if not req.confirm:
+        audit_id = _remediation_audit(
+            "create_jira", req.break_id, "dry_run",
+            {"summary": req.summary, "priority": req.priority}, {"payload": payload},
+        )
+        return {
+            "status": "dry_run",
+            "message": "Draft prepared. Re-submit with confirm=true to write.",
+            "payload": payload,
+            "audit_id": audit_id,
+        }
+
+    drafts_dir = os.path.join(REMEDIATION_DIR, "jira_drafts")
+    os.makedirs(drafts_dir, exist_ok=True)
+    ts = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    issue_key = f"RECON-DRAFT-{ts}-{uuid.uuid4().hex[:6]}"
+    file_path = os.path.join(drafts_dir, f"{issue_key}.json")
+    with open(file_path, "w", encoding="utf-8") as f:
+        json.dump({"issue_key": issue_key, "break_id": req.break_id, **payload}, f, indent=2)
+
+    audit_id = _remediation_audit(
+        "create_jira", req.break_id, "drafted",
+        {"summary": req.summary, "priority": req.priority},
+        {"issue_key": issue_key, "file": file_path},
+    )
+    return {
+        "status": "drafted",
+        "message": f"Wrote draft to {file_path}. (No live Jira call made.)",
+        "issue_key": issue_key,
+        "file": file_path,
+        "audit_id": audit_id,
+    }
+
+
+class PushMappingRequest(BaseModel):
+    break_id: str
+    report_form: str = "FR2052a"
+    filter_or_rule: str
+    current_value: str
+    target_value: str
+    confirm: bool = False
+
+
+@app.post("/api/remediation/push_mapping")
+def push_mapping(req: PushMappingRequest):
+    """Write an AxiomSL mapping proposal XML snippet to disk. Does NOT edit
+    the live AxiomSL config — a reviewer applies the proposal manually.
+    """
+    snippet = (
+        f"<!-- ReconX mapping proposal for {req.break_id} -->\n"
+        f"<MappingProposal report=\"{req.report_form}\" rule=\"{req.filter_or_rule}\">\n"
+        f"  <Map from=\"{req.current_value}\" to=\"{req.target_value}\"/>\n"
+        f"</MappingProposal>\n"
+    )
+
+    if not req.confirm:
+        audit_id = _remediation_audit(
+            "push_mapping", req.break_id, "dry_run",
+            req.model_dump(), {"snippet": snippet},
+        )
+        return {
+            "status": "dry_run",
+            "message": "Proposal prepared. Re-submit with confirm=true to write.",
+            "snippet": snippet,
+            "audit_id": audit_id,
+        }
+
+    proposals_dir = os.path.join(REMEDIATION_DIR, "mapping_proposals")
+    os.makedirs(proposals_dir, exist_ok=True)
+    ts = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    proposal_id = f"MAP-{ts}-{uuid.uuid4().hex[:6]}"
+    file_path = os.path.join(proposals_dir, f"{proposal_id}.xml")
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(snippet)
+
+    audit_id = _remediation_audit(
+        "push_mapping", req.break_id, "drafted",
+        req.model_dump(), {"proposal_id": proposal_id, "file": file_path},
+    )
+    return {
+        "status": "drafted",
+        "message": f"Wrote proposal to {file_path}. Reviewer applies it manually.",
+        "proposal_id": proposal_id,
+        "file": file_path,
+        "audit_id": audit_id,
+    }
+
+
+@app.get("/api/remediation/audit")
+def remediation_audit(break_id: Optional[str] = None, limit: int = 50):
+    """Return audit entries, newest first. Optionally filter by break_id."""
+    if not os.path.exists(REMEDIATION_AUDIT_FILE):
+        return []
+    entries = []
+    with open(REMEDIATION_AUDIT_FILE, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                e = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if break_id and e.get("break_id") != break_id:
+                continue
+            entries.append(e)
+    entries.reverse()
+    return entries[:limit]
 
 
 # ---------- Entrypoint ----------

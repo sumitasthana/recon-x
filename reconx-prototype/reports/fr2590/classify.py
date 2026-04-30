@@ -16,9 +16,14 @@ Additional config-derived breaks (from fr2590_axiomsl_config_files.xml):
 import structlog
 import json
 import os
+import time
+import uuid
+from datetime import datetime, timezone
 from core.state import ReconState, Break, BreakReport, BreakCategory
 from llm.client import get_llm
 from reports.fr2590.scenarios import SCENARIO_BREAK_GATE
+from telemetry.models import SkillInvocation
+from telemetry.store import log_invocation
 
 
 def _populate_silent_filter_metrics(state: ReconState) -> None:
@@ -78,6 +83,8 @@ def classify_node(state: ReconState) -> dict:
 
     _populate_silent_filter_metrics(state)
 
+    _t0 = time.monotonic()
+
     # 1. Load FR 2590 domain skill
     skill_path = os.path.join(os.path.dirname(__file__), "skill", "SKILL.md")
     system_context = _load_skill(skill_path)
@@ -109,7 +116,65 @@ def classify_node(state: ReconState) -> dict:
              total_breaks=len(breaks),
              recon_score=round(recon_score, 2),
              method=method)
+
+    # ── Telemetry: one invocation per (skill, break). Wrapped so a
+    # telemetry failure can never break the reconciliation pipeline.
+    try:
+        _log_classify_telemetry(
+            skill_id="domain_fr2590",
+            query_text=f"classify FR 2590 SCCL · {state.config.report_date}",
+            breaks=breaks,
+            duration_ms=int((time.monotonic() - _t0) * 1000),
+        )
+    except Exception as e:
+        log.warning("telemetry.log_failed", skill_id="domain_fr2590", error=str(e))
+
     return {"report": report}
+
+
+def _log_classify_telemetry(skill_id: str, query_text: str, breaks: list, duration_ms: int) -> None:
+    """Record one telemetry invocation per break the skill helped classify.
+
+    Honest about the gap: classify-time loading isn't FAISS retrieval, so
+    matched_triggers / chunks_retrieved / retrieval_score are sparse.
+    """
+    now = datetime.now(timezone.utc).replace(tzinfo=None)  # naive UTC — matches DuckDB TIMESTAMP
+    if not breaks:
+        log_invocation(SkillInvocation(
+            invocation_id=str(uuid.uuid4()),
+            skill_id=skill_id,
+            query_text=query_text,
+            matched_triggers=[],
+            retrieval_score=1.0,
+            chunks_retrieved=[],
+            break_id=None,
+            classification_result=None,
+            classification_confidence=None,
+            timestamp=now,
+            duration_ms=duration_ms,
+        ))
+        return
+
+    per_break_ms = max(1, duration_ms // len(breaks))
+    for b in breaks:
+        log_invocation(SkillInvocation(
+            invocation_id=str(uuid.uuid4()),
+            skill_id=skill_id,
+            query_text=query_text,
+            matched_triggers=[],
+            retrieval_score=1.0,
+            chunks_retrieved=[],
+            break_id=getattr(b, "break_id", None),
+            classification_result=str(getattr(b, "category", "") or ""),
+            classification_confidence=None,
+            timestamp=now,
+            duration_ms=per_break_ms,
+        ))
+    structlog.get_logger().warning(
+        "telemetry.chunk_provenance_unavailable",
+        skill_id=skill_id,
+        reason="classify path loads SKILL.md by file path, not via FAISS — chunk-level provenance is not captured",
+    )
 
 
 def _load_skill(skill_path: str) -> str:

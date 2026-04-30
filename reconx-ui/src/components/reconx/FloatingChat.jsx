@@ -317,6 +317,166 @@ export default function FloatingChat({
   );
 }
 
+const SPECIALIST_LABELS = {
+  ask_data_analyst: 'Data Analyst',
+  ask_regulatory_expert: 'Regulatory Expert',
+  ask_pipeline_operator: 'Pipeline Operator',
+  ask_remediation_expert: 'Remediation Expert',
+};
+
+// Inspect a Remediation Expert output and surface the actions it implies.
+// Each action is "thought process only" — clicking shows what the side
+// effect *would* do, but no real call is wired up yet.
+function detectRemediationActions(output) {
+  const actions = [];
+  if (/BEGIN;\s*UPDATE/i.test(output) || /```sql/i.test(output)) {
+    actions.push({
+      kind: 'sql',
+      label: 'Apply SQL fix',
+      steps: [
+        'Validate target table exists via information_schema',
+        'Snapshot affected rows to recon_audit.fix_backup_<ts>',
+        'Run UPDATE inside a single transaction; rollback if row-count delta != expected',
+        'Append entry to recon_audit.fix_log with break_id and operator',
+      ],
+      requires: 'Data engineer approval (4-eyes); WRITE grant on the Snowflake target schema',
+      endpoint: 'POST /api/remediation/apply_sql  — not implemented',
+    });
+  }
+  if (/"project"\s*:\s*\{[^}]*"key"\s*:\s*"RECON"/.test(output)) {
+    actions.push({
+      kind: 'jira',
+      label: 'Create JIRA ticket',
+      steps: [
+        'POST payload to https://jira.internal/rest/api/2/issue',
+        'Auth: service account jira-bot (RECON project read-write)',
+        'On 201: capture issue key, attach break_report.json',
+        'Set watchers from PagerDuty data-eng on-call schedule',
+      ],
+      requires: 'RECON project create-issue grant (pre-provisioned for jira-bot)',
+      endpoint: 'POST /api/remediation/create_jira  — not implemented',
+    });
+  }
+  if (/AxiomSL Mapping/i.test(output) || /dictionary entry/i.test(output)) {
+    actions.push({
+      kind: 'mapping',
+      label: 'Push mapping update',
+      steps: [
+        'Edit reports/fr2052a/axiomsl_dictionary.xml — append <Map> entry',
+        'Open PR against main with diff + break context in description',
+        'On merge: trigger AxiomSL config reload via /admin/reload',
+        'Re-run the failing recon for verification',
+      ],
+      requires: 'PR review by reg-reporting team lead; AxiomSL admin role to reload',
+      endpoint: 'POST /api/remediation/push_mapping  — not implemented',
+    });
+  }
+  return actions;
+}
+
+function ThoughtProcess({ action }) {
+  return (
+    <div
+      className="rounded p-2.5 text-[10px] text-zinc-300 space-y-2 leading-relaxed"
+      style={{
+        backgroundColor: 'rgba(59,130,246,0.06)',
+        border: '1px solid rgba(96,165,250,0.25)',
+      }}
+    >
+      <div className="text-blue-300 uppercase tracking-wider text-[9px] font-semibold">
+        Thought process — {action.label} <span className="text-zinc-500 normal-case tracking-normal italic">(not executed)</span>
+      </div>
+      <div>
+        <div className="text-zinc-500 text-[9px] uppercase tracking-wider mb-1">Steps</div>
+        <ol className="list-decimal list-inside space-y-0.5 text-zinc-300">
+          {action.steps.map((s, i) => <li key={i}>{s}</li>)}
+        </ol>
+      </div>
+      <div>
+        <div className="text-zinc-500 text-[9px] uppercase tracking-wider mb-1">Requires</div>
+        <div>{action.requires}</div>
+      </div>
+      <div>
+        <div className="text-zinc-500 text-[9px] uppercase tracking-wider mb-1">Wiring</div>
+        <div className="font-mono text-zinc-400">{action.endpoint}</div>
+      </div>
+    </div>
+  );
+}
+
+function ToolResultCard({ toolName, output }) {
+  const [open, setOpen] = useState(false);
+  const [activeAction, setActiveAction] = useState(null);
+  const label = SPECIALIST_LABELS[toolName] || toolName;
+  const isRemediation = toolName === 'ask_remediation_expert';
+  const actions = isRemediation ? detectRemediationActions(output || '') : [];
+
+  return (
+    <div
+      className="rounded overflow-hidden text-[11px]"
+      style={{
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        border: '1px solid rgba(255,255,255,0.08)',
+      }}
+    >
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left transition-colors"
+        style={{ color: '#a1a1aa' }}
+        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.04)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+      >
+        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+        <span className="uppercase tracking-wider text-[9px] font-medium text-zinc-500">Consulted</span>
+        <span className="text-zinc-200 font-medium">{label}</span>
+        {actions.length > 0 && (
+          <span
+            className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded"
+            style={{ background: 'rgba(96,165,250,0.15)', color: '#93c5fd' }}
+          >
+            {actions.length} action{actions.length > 1 ? 's' : ''}
+          </span>
+        )}
+        <span className="ml-auto text-zinc-500 text-[10px]">{open ? '−' : '+'}</span>
+      </button>
+      {open && (
+        <div className="px-2.5 py-2 space-y-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          <pre
+            className="whitespace-pre-wrap break-words text-[10px] leading-relaxed font-mono max-h-48 overflow-y-auto"
+            style={{ color: '#d4d4d8' }}
+          >
+            {output}
+          </pre>
+          {actions.length > 0 && (
+            <>
+              <div className="flex flex-wrap gap-1.5 pt-1.5" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                {actions.map((a) => {
+                  const isActive = activeAction?.kind === a.kind;
+                  return (
+                    <button
+                      key={a.kind}
+                      onClick={() => setActiveAction(isActive ? null : a)}
+                      className="px-2 py-1 rounded text-[10px] font-medium transition-colors"
+                      style={{
+                        backgroundColor: isActive ? 'rgba(59,130,246,0.18)' : 'rgba(255,255,255,0.06)',
+                        border: isActive ? '1px solid rgba(96,165,250,0.45)' : '1px solid rgba(255,255,255,0.1)',
+                        color: isActive ? '#bfdbfe' : '#d4d4d8',
+                      }}
+                    >
+                      {a.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {activeAction && <ThoughtProcess action={activeAction} />}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ChatMessage({ message }) {
   const isUser = message.role === 'user';
   const isAgent = message.role === 'tool';
@@ -336,34 +496,46 @@ function ChatMessage({ message }) {
     );
   }
 
+  const toolResults = message.toolResults || [];
+
   return (
-    <div className={`flex items-start gap-2 ${isUser ? 'flex-row-reverse' : ''}`}>
-      {/* Avatar */}
-      <div
-        className="shrink-0 w-[22px] h-[22px] rounded-full flex items-center justify-center text-[10px] font-medium"
-        style={{
-          background: isUser
-            ? 'rgba(255,255,255,0.1)'
-            : 'linear-gradient(135deg, #185FA5 0%, #0F6E56 100%)',
-          color: 'white'
-        }}
-      >
-        {isUser ? 'U' : 'Rx'}
+    <div className="space-y-1.5">
+      <div className={`flex items-start gap-2 ${isUser ? 'flex-row-reverse' : ''}`}>
+        {/* Avatar */}
+        <div
+          className="shrink-0 w-[22px] h-[22px] rounded-full flex items-center justify-center text-[10px] font-medium"
+          style={{
+            background: isUser
+              ? 'rgba(255,255,255,0.1)'
+              : 'linear-gradient(135deg, #185FA5 0%, #0F6E56 100%)',
+            color: 'white'
+          }}
+        >
+          {isUser ? 'U' : 'Rx'}
+        </div>
+
+        {/* Message bubble */}
+        <div
+          className={`flex-1 px-3 py-2 rounded-lg text-[12px] leading-relaxed ${
+            isUser ? 'text-right' : ''
+          }`}
+          style={{
+            backgroundColor: isUser ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.08)',
+            border: isUser ? '1px solid rgba(255,255,255,0.08)' : 'none',
+            color: isUser ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.85)'
+          }}
+        >
+          {message.content || (toolResults.length > 0 ? <span className="italic text-zinc-500">Working...</span> : '')}
+        </div>
       </div>
 
-      {/* Message bubble */}
-      <div
-        className={`flex-1 px-3 py-2 rounded-lg text-[12px] leading-relaxed ${
-          isUser ? 'text-right' : ''
-        }`}
-        style={{
-          backgroundColor: isUser ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.08)',
-          border: isUser ? '1px solid rgba(255,255,255,0.08)' : 'none',
-          color: isUser ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.85)'
-        }}
-      >
-        {message.content}
-      </div>
+      {!isUser && toolResults.length > 0 && (
+        <div className="pl-7 space-y-1.5">
+          {toolResults.map((tr, i) => (
+            <ToolResultCard key={i} toolName={tr.tool} output={tr.output} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

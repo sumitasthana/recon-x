@@ -7,7 +7,7 @@ import ReconContext from './components/reconx/ReconContext';
 import SkillShowcase from './components/reconx/SkillShowcase';
 import StepCard from './components/reconx/StepCard';
 import BreakReport from './components/reconx/BreakReport';
-import DataExplorer from './components/reconx/DataExplorer';
+import SourceData from './components/reconx/SourceData';
 import Observatory from './components/reconx/Observatory';
 import FloatingChat from './components/reconx/FloatingChat';
 
@@ -15,6 +15,7 @@ import FloatingChat from './components/reconx/FloatingChat';
 import Briefing from './components/reconx/Briefing';
 import AuditLog from './components/reconx/AuditLog';
 import Platform from './components/reconx/Platform';
+import { SkillPanelProvider } from './components/reconx/skills/SkillPanelContext';
 
 const STEP_DURATION = 6500;
 
@@ -43,6 +44,12 @@ function App() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [selectedReport, setSelectedReport] = useState(null);
   const [reportDate, setReportDate] = useState(() => new Date().toISOString().slice(0, 10));
+  // Which report the in-flight (or last-completed) run was started for.
+  // useReconRun tracks a single global `phase` with no report identity,
+  // so without this we'd show "Reconciling…" on whichever report the
+  // user is *currently looking at*, even if a different report's run
+  // is what's actually running.
+  const [runningReport, setRunningReport] = useState(null);
 
   // Sync Reconciliation tab's report selector with global regulation
   useEffect(() => {
@@ -54,9 +61,15 @@ function App() {
   const { steps: reportSteps } = useReportSteps(selectedReport);
 
   const {
-    startRun, phase, stepStatuses: sseStatuses,
+    startRun, phase: rawPhase, stepStatuses: sseStatuses,
     report: apiReport, error: apiError,
   } = useReconRun(reportSteps.length || 4);
+
+  // Phase scoped to whichever report the user is currently viewing.
+  // If a run is in flight for a different report, this view is idle
+  // — it doesn't borrow the other report's running/done state.
+  const phase = (!runningReport || runningReport === selectedReport) ? rawPhase : 'idle';
+  const isMyRunResult = runningReport === selectedReport;
 
   const [elapsed, setElapsed] = useState(0);
   const [currentStep, setCurrentStep] = useState(-1);
@@ -75,6 +88,7 @@ function App() {
 
   const handleStart = useCallback(() => {
     if (!selectedReport) return;
+    setRunningReport(selectedReport);
     startRun(selectedReport, reportDate, null);
     setCurrentStep(0);
     setElapsed(0);
@@ -138,6 +152,16 @@ function App() {
   );
 
   return (
+    <SkillPanelProvider
+      onJumpToBreak={(brk) => {
+        // Cross-link from a Skill detail panel's invocation row → jump
+        // to the Reconciliation tab. Deep-linking to the specific BRK
+        // would need the BreakReport to read ?break=… from URL — that's
+        // a follow-up. For now, just bring the user to the Reconciliation
+        // tab so they can scroll to the break.
+        setActiveTab('recon');
+      }}
+    >
     <div className="flex flex-col h-screen overflow-hidden">
 
       {/* ════════ TOPBAR ════════ */}
@@ -247,10 +271,10 @@ function App() {
         <main className="flex-1 min-w-0 overflow-y-auto bg-g-50">
 
           {activeTab === 'briefing' && <Briefing onNavigate={setActiveTab} />}
-          {activeTab === 'observatory' && <Observatory reportType={activeRegulation} reconPhase={phase} />}
+          {activeTab === 'observatory' && <Observatory reportType={activeRegulation} reconPhase={rawPhase} />}
           {activeTab === 'auditlog' && <AuditLog reportType={activeRegulation} />}
           {activeTab === 'platform' && <Platform />}
-          {activeTab === 'data' && <div className="p-6"><DataExplorer /></div>}
+          {activeTab === 'data' && <SourceData report={activeRegulation} />}
 
           {/* ── Reconciliation ── */}
           {activeTab === 'recon' && (
@@ -338,7 +362,10 @@ function App() {
               )}
 
               <div ref={reportRef}>
-                <BreakReport report={apiReport} visible={phase === 'done' && !!apiReport} />
+                <BreakReport
+                  report={apiReport}
+                  visible={phase === 'done' && !!apiReport && isMyRunResult}
+                />
               </div>
             </div>
           )}
@@ -355,6 +382,7 @@ function App() {
         onUnreadChange={setUnreadCount}
       />
     </div>
+    </SkillPanelProvider>
   );
 }
 

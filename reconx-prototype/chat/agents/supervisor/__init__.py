@@ -16,6 +16,7 @@ from chat.agents.supervisor.tools import (
     ask_data_analyst,
     ask_regulatory_expert,
     ask_pipeline_operator,
+    ask_remediation_expert,
 )
 
 NAME = "supervisor"
@@ -71,6 +72,7 @@ def build(config, specialists, checkpointer=None):
         specialists["data_analyst"],
         specialists["regulatory_expert"],
         specialists["pipeline_operator"],
+        specialists["remediation_expert"],
     )
 
     # Load prompt from YAML + inject runtime context
@@ -85,4 +87,4 @@ def build(config, specialists, checkpointer=None):
     )
 
 
-__all__ = ["build", "TOOLS", "NAME", "ask_data_analyst", "ask_regulatory_expert", "ask_pipeline_operator"]
+__all__ = ["build", "TOOLS", "NAME", "ask_data_analyst", "ask_regulatory_expert", "ask_pipeline_operator", "ask_remediation_expert"]

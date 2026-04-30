@@ -86,7 +86,7 @@ class FR2052aPlugin(ReportPlugin):
             {
                 "id": "step4",
                 "label": "Classifying breaks",
-                "subtitle": "AI-powered root cause analysis",
+                "subtitle": "Root cause analysis",
                 "skills": ["regulatory"],
                 "messages": [
                     {"text": "Loading FR 2052a regulatory knowledge", "delay": 0, "skill": "regulatory"},

@@ -1,10 +1,26 @@
 import React from 'react';
+import LastRunSummaryCard from './LastRunSummaryCard';
+
+// Hardcoded mock until the API exposes a last-run summary. Matches
+// the static-data convention used by the lineage tab.
+const MOCK_LAST_RUN = {
+  lastRunTime: 'Today, 06:14 AM',
+  lastRunDate: '2026-04-27',
+  snowflakePositions: 40004,
+  axiomslPositions: 39981,
+  breaksHigh: 2,
+  breaksMed: 2,
+  breaksLow: 0,
+  refDataStatus: {
+    fxRates: 'ok',
+    hqlaRef: 'stale',
+    counterparty: 'warn',
+  },
+};
 
 const ReconContext = ({ context }) => {
   if (!context) return null;
 
-  const sourceSystems = context.source_systems || [];
-  const processingSteps = context.target_processing || [];
   const tables = context.tables || [];
 
   const getTableStyles = (category) => {
@@ -26,54 +42,7 @@ const ReconContext = ({ context }) => {
 
   return (
     <div className="w-full">
-      {/* Main 3-zone flow */}
-      <div className="flex flex-col sm:flex-row items-stretch gap-4 sm:h-[260px]">
-        {/* ZONE 1 — Source */}
-        <div className="w-full sm:w-[35%] rounded-[10px] p-4 flex flex-col"
-          style={{ background: '#eff4ff', border: '1px solid #93c5fd' }}>
-          <h3 className="text-sm font-medium text-status-blue mb-1">Source</h3>
-          <p className="text-[11px] text-g-400 mb-4 font-light">
-            {sourceSystems.length} source system{sourceSystems.length !== 1 ? 's' : ''}
-          </p>
-          <div className="flex-1 space-y-2">
-            {sourceSystems.map((system) => (
-              <div key={system.name} className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-status-blue" />
-                <span className="text-[11px] font-mono text-g-800 font-medium">{system.name}</span>
-                <span className="text-[11px] text-g-400 font-light">&mdash; {system.assets}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ZONE 2 — Connector */}
-        <div className="w-full sm:w-[10%] flex flex-row sm:flex-col items-center justify-center py-2 sm:py-0">
-          <div className="relative w-full h-12 flex items-center justify-center">
-            <svg className="w-full h-8" viewBox="0 0 100 20">
-              <line x1="5" y1="10" x2="95" y2="10" stroke="#9ca3af" strokeWidth="2" strokeDasharray="6 4" />
-            </svg>
-          </div>
-          <p className="text-[10px] text-g-400 mt-2 font-light">ReconX compares</p>
-        </div>
-
-        {/* ZONE 3 — Target */}
-        <div className="w-full sm:w-[35%] rounded-[10px] p-4 flex flex-col"
-          style={{ background: '#f0ebff', border: '1px solid #c4b5fd' }}>
-          <h3 className="text-sm font-medium text-status-purple mb-1">Target</h3>
-          <p className="text-[11px] text-g-400 mb-4 font-light">
-            Transforms positions into {context.regulator || 'regulatory'} submission
-          </p>
-          <div className="flex-1 space-y-2">
-            {processingSteps.map((step) => (
-              <div key={step.label} className="flex items-center gap-2">
-                <span className="text-[11px] text-g-300">&#9656;</span>
-                <span className="text-[11px] text-g-800 font-medium">{step.label}</span>
-                <span className="text-[11px] text-g-400 font-light">&mdash; {step.desc}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      <LastRunSummaryCard {...MOCK_LAST_RUN} />
 
       {/* BOTTOM — Filed tables */}
       {tables.length > 0 && (

@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import MetricCard from './MetricCard';
+import { useSkillsTelemetry } from '../../hooks/useSkillsTelemetry';
+import SkillsHealthBar from './skills/SkillsHealthBar';
+import SkillsTable from './skills/SkillsTable';
+import LibraryGrid from './skills/LibraryGrid';
+import { useSkillPanel } from './skills/SkillPanelContext';
 
 /**
  * Platform Workbench — agent observatory, skills library, prompt info,
@@ -7,74 +12,72 @@ import MetricCard from './MetricCard';
  */
 
 const PLATFORM_TABS = [
-  { id: 'agents', label: 'Agent observatory' },
-  { id: 'budget', label: 'Budget & Caching' },
+  { id: 'agents', label: 'Agent Studio' },
   { id: 'skills', label: 'Skills library' },
   { id: 'prompts', label: 'Prompt studio' },
   { id: 'pipelines', label: 'Data pipelines' },
+  { id: 'budget', label: 'Budget & Caching' },
 ];
 
-/* ── Agent data ─────────────────────────────────────── */
-const AGENTS = [
-  {
-    id: 'supervisor', name: 'Supervisor Agent', abbr: 'SV', tier: 'chat',
-    desc: 'Routes user requests to the correct specialist agent (Sonnet)',
-    model: 'Claude 3.5 Sonnet', runs: 142, success: 99.3, latency: '1.2s', cost: '$0.41',
-    recentRuns: [
-      { time: '08:41 AM', summary: 'Routed break query to Regulatory Expert', status: 'pass', latency: '0.9s' },
-      { time: '08:38 AM', summary: 'Routed table listing to Data Analyst', status: 'pass', latency: '1.1s' },
-      { time: '08:22 AM', summary: 'Direct greeting response — no delegation', status: 'pass', latency: '0.6s' },
+/* Per-agent tool / skill enrichment.
+   The /api/platform/agents endpoint only emits prompt-yaml metadata
+   (name, model_tier, description, tags, version, file). The tool list
+   and "uses skills" flag are read from each agent's tools.py. Until
+   the API exposes that, we mirror it here so the cards can show what
+   each agent can actually do. Update this when an agent's TOOLS
+   change in chat/agents/<name>/tools.py. */
+const AGENT_DETAILS = {
+  supervisor: {
+    role: 'Reads the user message, routes it to the right specialist via ask_* tools, and owns user-facing formatting.',
+    tools: [
+      { name: 'ask_data_analyst',       routesTo: 'data_analyst' },
+      { name: 'ask_regulatory_expert',  routesTo: 'regulatory_expert' },
+      { name: 'ask_pipeline_operator',  routesTo: 'pipeline_operator' },
+      { name: 'ask_remediation_expert', routesTo: 'remediation_expert' },
     ],
+    usesSkills: false,
   },
-  {
-    id: 'data', name: 'Data Analyst', abbr: 'DA', tier: 'chat',
-    desc: 'SQL queries, table exploration, source data analysis (Haiku)',
-    model: 'Claude 3 Haiku', runs: 89, success: 100, latency: '0.8s', cost: '$0.12',
-    recentRuns: [
-      { time: '08:38 AM', summary: 'Listed 16 tables from DuckDB, formatted with row counts', status: 'pass', latency: '0.7s' },
-      { time: '07:55 AM', summary: 'SQL query on DIM_FX_RATE — 8 rows returned', status: 'pass', latency: '0.9s' },
+  data_analyst: {
+    role: 'Runs SQL against the source DuckDB warehouse to answer ad-hoc data questions (row counts, notionals, joins).',
+    tools: [
+      { name: 'list_tables' },
+      { name: 'query_database' },
     ],
+    usesSkills: false,
   },
-  {
-    id: 'regulatory', name: 'Regulatory Expert', abbr: 'RE', tier: 'chat',
-    desc: 'Break analysis, report inspection, domain knowledge via RAG (Haiku)',
-    model: 'Claude 3 Haiku', runs: 156, success: 98.7, latency: '1.4s', cost: '$0.28',
-    recentRuns: [
-      { time: '08:41 AM', summary: 'Inspected latest FR 2052a report — 3 breaks, score 45', status: 'pass', latency: '1.2s' },
-      { time: '08:30 AM', summary: 'RAG search: HQLA classification rules — 4 chunks retrieved', status: 'pass', latency: '1.6s' },
-      { time: '08:15 AM', summary: 'Explain BRK-001 — FX rate source mismatch detail', status: 'pass', latency: '1.1s' },
+  pipeline_operator: {
+    role: 'Triggers a fresh reconciliation run for a given report type and date.',
+    tools: [
+      { name: 'run_reconciliation' },
     ],
+    usesSkills: false,
   },
-  {
-    id: 'pipeline', name: 'Pipeline Operator', abbr: 'PO', tier: 'chat',
-    desc: 'Runs reconciliation pipelines on demand (Haiku)',
-    model: 'Claude 3 Haiku', runs: 24, success: 95.8, latency: '3.2s', cost: '$0.84',
-    recentRuns: [
-      { time: '08:22 AM', summary: 'FR 2052a recon for 2026-04-04 — score 45, 3 breaks', status: 'pass', latency: '4.1s' },
-      { time: '07:00 AM', summary: 'Timeout on large batch — retried and succeeded', status: 'warn', latency: '30s' },
+  regulatory_expert: {
+    role: 'Interprets breaks from saved reports and answers FR 2052a / FR 2590 domain questions via RAG over the skills library.',
+    tools: [
+      { name: 'list_available_reports' },
+      { name: 'inspect_break_report' },
+      { name: 'explain_break' },
+      { name: 'get_recon_summary' },
+      { name: 'search_regulatory_docs', skill: true },
     ],
+    usesSkills: true,
   },
-  {
-    id: 'fr2052a_classifier', name: 'FR 2052a Classifier', abbr: 'C52', tier: 'classifier',
-    desc: 'Break-classification prompt invoked by the FR 2052a pipeline classify step (Haiku; deterministic fallback currently active)',
-    model: 'Claude 3 Haiku', runs: 18, success: 100, latency: '0.6s', cost: '$0.03',
-    recentRuns: [
-      { time: '08:22 AM', summary: 'Classified 3 breaks for 2026-04-20 run — deterministic fallback', status: 'pass', latency: '0.5s' },
-      { time: '07:00 AM', summary: 'Classified 2 breaks for 2026-04-17 run — deterministic fallback', status: 'pass', latency: '0.6s' },
+  remediation_expert: {
+    role: 'Drafts SQL fixes, AxiomSL config mappings, and Jira tickets to remediate identified breaks.',
+    tools: [
+      { name: 'generate_sql_fix' },
+      { name: 'suggest_axiom_mapping' },
+      { name: 'draft_jira_ticket' },
     ],
+    usesSkills: false,
   },
-  {
-    id: 'fr2590_classifier', name: 'FR 2590 Classifier', abbr: 'C59', tier: 'classifier',
-    desc: 'Break-classification prompt for FR 2590 (SCCL) pipeline classify step (Haiku; deterministic fallback currently active)',
-    model: 'Claude 3 Haiku', runs: 6, success: 100, latency: '0.7s', cost: '$0.01',
-    recentRuns: [
-      { time: '08:05 AM', summary: 'Classified 2 SCCL breaks — deterministic fallback', status: 'pass', latency: '0.7s' },
-    ],
-  },
-];
+};
 
-// Skills are loaded live from /api/skills
-// Prompts are loaded live from /api/platform/prompts
+// Agents are loaded live from /api/platform/agents (auto-discovered from
+// chat/agents/<name>/prompt.yaml and reports/<name>/classify_prompt.yaml).
+// Skills are loaded live from /api/skills.
+// Prompts are loaded live from /api/platform/prompts.
 
 const TIER_STYLE = {
   Domain:   { bg: '#eff4ff', fg: '#1d4ed8' },
@@ -94,167 +97,362 @@ const PIPELINES = [
 
 /* ── Sub-views ──────────────────────────────────────── */
 
-function AgentObservatory() {
-  const [expandedId, setExpandedId] = useState(null);
-  const totalRuns = AGENTS.reduce((s, a) => s + a.runs, 0);
-  const avgSuccess = (AGENTS.reduce((s, a) => s + a.success, 0) / AGENTS.length).toFixed(1);
-  const totalCost = AGENTS.reduce((s, a) => s + parseFloat(a.cost.replace('$', '')), 0).toFixed(2);
+/* ── Agent Studio ────────────────────────────────────────
+   Hierarchical view: Supervisor sits at the top; specialists
+   fan out below. Classifiers (pipeline classify-step prompts,
+   not part of the chat tree) are shown in a separate section. */
+
+function TierBadge({ modelTier }) {
+  const map = {
+    supervisor: { label: 'Supervisor', style: TIER_STYLE.Domain },
+    specialist: { label: 'Specialist', style: TIER_STYLE.Platform },
+    classifier: { label: 'Classifier', style: TIER_STYLE.Client },
+  };
+  const it = map[modelTier];
+  if (!it) return null;
+  return (
+    <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded"
+      style={{ background: it.style.bg, color: it.style.fg }}>
+      {it.label}
+    </span>
+  );
+}
+
+function ToolPill({ tool }) {
+  // Tools that hit the skills RAG retriever get the teal "skills"
+  // accent (matches the lineage REFERENCE node + Skills library card).
+  const isSkill = !!tool.skill;
+  const isRoute = !!tool.routesTo;
+  const bg = isSkill ? '#f0fdfa' : isRoute ? '#e8eef7' : '#f9fafb';
+  const fg = isSkill ? '#0f766e' : isRoute ? '#0c1f3d' : '#4b5563';
+  const border = isSkill ? '#5eead4' : isRoute ? '#c7d2e3' : '#e5e7eb';
+  return (
+    <span
+      className="inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded"
+      style={{ background: bg, color: fg, border: `1px solid ${border}` }}
+      title={isSkill ? 'Calls into the skills RAG retriever' : isRoute ? `Delegates to ${tool.routesTo}` : 'Local Python tool'}
+    >
+      {isSkill && <span aria-hidden style={{ width: 5, height: 5, borderRadius: '50%', background: '#0f766e', display: 'inline-block' }} />}
+      {tool.name}
+    </span>
+  );
+}
+
+function AgentCard({ agent, accent, prominent }) {
+  const detail = AGENT_DETAILS[agent.id] || null;
+  const role = detail?.role || agent.description;
+  const tools = detail?.tools || [];
+  const usesSkills = !!detail?.usesSkills;
+  return (
+    <div
+      className="card overflow-hidden flex flex-col h-full"
+      style={{ borderTop: accent ? `3px solid ${accent}` : undefined }}
+    >
+      {/* Header */}
+      <div className="flex items-start gap-3 px-4 pt-3.5 pb-3">
+        <div
+          className="rounded-lg flex items-center justify-center font-bold flex-shrink-0"
+          style={{
+            width: prominent ? 44 : 36, height: prominent ? 44 : 36,
+            background: '#e8eef7', color: '#0c1f3d',
+            fontSize: prominent ? 13 : 11,
+          }}
+        >
+          {agent.abbr}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`${prominent ? 'text-[14px]' : 'text-[13px]'} font-medium text-g-900`}>
+              {agent.name}
+            </span>
+            <TierBadge modelTier={agent.model_tier} />
+            {usesSkills && (
+              <span
+                className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                style={{ background: '#f0fdfa', color: '#0f766e', border: '1px solid #5eead4' }}
+                title="Uses the skills RAG retriever"
+              >
+                Skills
+              </span>
+            )}
+            {agent.version && (
+              <span className="text-[10px] text-g-400 font-mono">v{agent.version}</span>
+            )}
+          </div>
+          <div className="text-[11px] text-g-500 font-light leading-[1.5] mt-1">
+            {role}
+          </div>
+        </div>
+      </div>
+
+      {/* Tools */}
+      {tools.length > 0 && (
+        <div className="px-4 pb-2.5">
+          <div className="text-[9px] font-semibold uppercase tracking-wider text-g-400 mb-1.5">
+            Tools ({tools.length})
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {tools.map((t) => <ToolPill key={t.name} tool={t} />)}
+          </div>
+        </div>
+      )}
+
+      {/* Footer metadata */}
+      <div className="mt-auto flex flex-wrap items-center gap-3 px-4 py-2 border-t border-g-100 text-[10px] text-g-500">
+        <span>Model: <strong className="text-g-700 font-medium">{agent.model}</strong></span>
+        {(agent.tags || []).length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {agent.tags.slice(0, 5).map((t) => (
+              <span key={t} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-g-50 border border-g-200 text-g-600">
+                {t}
+              </span>
+            ))}
+          </div>
+        )}
+        {agent.file && (
+          <span className="ml-auto text-[9px] text-g-400 font-mono truncate max-w-[200px]" title={agent.file}>
+            {agent.file.split(/[\\/]/).slice(-2).join('/')}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AgentStudio() {
+  const [agents, setAgents] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/platform/agents')
+      .then((r) => r.json())
+      .then((data) => { setAgents(data || []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const supervisor = agents.find((a) => a.model_tier === 'supervisor');
+  const specialists = agents.filter((a) => a.model_tier === 'specialist');
+  const classifiers = agents.filter((a) => a.tier === 'classifier');
 
   return (
     <>
-      <div className="grid grid-cols-4 gap-3 mb-5">
-        <MetricCard label="Total runs today" value={totalRuns} sub={`across ${AGENTS.length} agents`} />
-        <MetricCard label="Avg success rate" value={`${avgSuccess}%`} color="#1a7f4b" />
-        <MetricCard label="Est. cost today" value={`$${totalCost}`} sub="Bedrock usage" />
-        <MetricCard label="Architecture" value="Multi-agent" sub={`Supervisor + ${AGENTS.filter(a => a.tier === 'chat').length - 1} specialists + ${AGENTS.filter(a => a.tier === 'classifier').length} classifiers`} />
+      {/* Top-line metrics */}
+      <div className="grid grid-cols-4 gap-3 mb-6">
+        <MetricCard label="Registered agents" value={agents.length || '—'} sub="auto-discovered from prompt.yaml" />
+        <MetricCard label="Chat tree" value={(supervisor ? 1 : 0) + specialists.length || '—'}
+          sub={`${supervisor ? 1 : 0} supervisor + ${specialists.length} specialists`} />
+        <MetricCard label="Classifiers" value={classifiers.length || '—'} sub="pipeline classify step" />
+        <MetricCard label="Architecture" value="Multi-agent" sub="Supervisor routes via ask_* tools" />
       </div>
 
-      {AGENTS.map((agent) => {
-        const isOpen = expandedId === agent.id;
-        const sc = agent.success >= 99 ? '#1a7f4b' : agent.success >= 97 ? '#b45309' : '#b91c1c';
-        return (
-          <div key={agent.id} className={`card mb-2.5 overflow-hidden transition-all ${isOpen ? 'border-navy shadow-md' : ''}`}>
-            <div className="flex items-start gap-3 px-4 py-3.5 cursor-pointer hover:bg-g-50 transition-colors"
-              onClick={() => setExpandedId(isOpen ? null : agent.id)}>
-              <div className="w-9 h-9 rounded-lg bg-navy-light flex items-center justify-center text-[11px] font-bold text-navy flex-shrink-0 mt-0.5">
-                {agent.abbr}
+      {loading ? (
+        <div className="card p-8 text-center text-[12px] text-g-400">Loading agents...</div>
+      ) : agents.length === 0 ? (
+        <div className="card p-8 text-center text-[12px] text-g-400">No agents registered.</div>
+      ) : (
+        <>
+          {/* ── Chat tree: Supervisor → Specialists ── */}
+          <div className="mb-6">
+            <div className="text-[10px] font-medium text-g-400 uppercase tracking-wider mb-3">
+              Chat tree
+            </div>
+
+            {supervisor && (
+              <div className="max-w-[680px] mx-auto">
+                <AgentCard agent={supervisor} accent="#0c1f3d" prominent />
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-[13px] font-medium text-g-900">{agent.name}</span>
-                  {agent.tier === 'classifier' && (
-                    <span
-                      className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded"
-                      style={{ background: TIER_STYLE.Client.bg, color: TIER_STYLE.Client.fg }}
-                    >
-                      Classifier
-                    </span>
-                  )}
+            )}
+
+            {/* Connector — vertical trunk + horizontal spread to specialists */}
+            {supervisor && specialists.length > 0 && (
+              <div className="relative h-8 max-w-[680px] mx-auto" aria-hidden>
+                {/* trunk */}
+                <div className="absolute left-1/2 top-0 bottom-0 w-px bg-g-300" />
+              </div>
+            )}
+
+            {specialists.length > 0 && (
+              <div className="relative">
+                {/* Horizontal rule across the top of the specialist row */}
+                {supervisor && (
+                  <div className="absolute left-[8.333%] right-[8.333%] top-0 h-px bg-g-300" aria-hidden />
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 pt-3 items-stretch">
+                  {specialists.map((a) => (
+                    <div key={a.id} className="relative h-full">
+                      {/* Drop line from horizontal rule to each card */}
+                      <div className="absolute left-1/2 -top-3 h-3 w-px bg-g-300" aria-hidden />
+                      <AgentCard agent={a} accent="#0f766e" />
+                    </div>
+                  ))}
                 </div>
-                <div className="text-[11px] text-g-400 font-light">{agent.desc}</div>
-              </div>
-              <span className="text-[11px] text-g-400 flex-shrink-0">⌄</span>
-            </div>
-            <div className="flex gap-4 px-4 pb-3 border-t border-g-100 pt-2.5 text-[11px] text-g-600 flex-wrap">
-              <span>Runs: <strong className="text-g-800">{agent.runs}</strong></span>
-              <span>Success: <strong style={{ color: sc }}>{agent.success}%</strong></span>
-              <span>Avg latency: <strong className="text-g-800">{agent.latency}</strong></span>
-              <span>Cost: <strong className="text-g-800">{agent.cost}</strong></span>
-              <span>Model: <strong className="text-g-800">{agent.model}</strong></span>
-            </div>
-            {isOpen && (
-              <div className="border-t border-g-100 px-4 py-3 bg-g-50">
-                <div className="text-[10px] font-medium text-g-400 uppercase tracking-wider mb-2">Recent runs</div>
-                {agent.recentRuns.map((r, i) => (
-                  <div key={i} className="flex items-center gap-2.5 py-1.5 border-b border-g-100 last:border-none text-[11px]">
-                    <div className="w-[7px] h-[7px] rounded-full flex-shrink-0"
-                      style={{ background: r.status === 'pass' ? '#1a7f4b' : r.status === 'warn' ? '#b45309' : '#b91c1c' }} />
-                    <span className="text-g-400 font-mono text-[10px] min-w-[70px]">{r.time}</span>
-                    <span className="flex-1 text-g-600 font-light">{r.summary}</span>
-                    <span className="text-g-400 font-mono text-[10px]">{r.latency}</span>
-                  </div>
-                ))}
               </div>
             )}
           </div>
-        );
-      })}
+
+          {/* ── Classifiers ── */}
+          {classifiers.length > 0 && (
+            <div>
+              <div className="text-[10px] font-medium text-g-400 uppercase tracking-wider mb-3">
+                Pipeline classifiers — invoked during the classify step, not part of the chat tree
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-stretch">
+                {classifiers.map((a) => (
+                  <AgentCard key={a.id} agent={a} accent="#b45309" />
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </>
   );
 }
 
+/* ── Skills Observatory ─────────────────────────────────
+   Tier-grouped operational table + slide-over detail panel.
+   Health tiles drive a filter on the table.
+   The slide-over is mounted at app root via SkillPanelProvider — this
+   tab simply calls openSkill(id) on row click. */
+
 function SkillsLibrary() {
-  const [skills, setSkills] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch('/api/skills')
-      .then(r => r.json())
-      .then(data => { setSkills(data || []); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, []);
-
-  const fmtSize = (bytes) => bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;
-  const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+  const { skills, health, loading, error, refresh } = useSkillsTelemetry();
+  const [mode, setMode] = useState('library');         // 'library' | 'operations'
+  const [filter, setFilter] = useState('all');
+  const [helpOpen, setHelpOpen] = useState(false);
+  const { openSkill } = useSkillPanel();
 
   return (
     <>
-      <div className="grid grid-cols-3 gap-3 mb-5">
-        <MetricCard label="Total skills" value={skills.length || '—'} sub="loaded from SKILL.md files" />
-        <MetricCard label="RAG chunks" value="~30" sub="indexed in FAISS" />
-        <MetricCard label="Embedding model" value="Titan v2" sub="amazon.titan-embed-text-v2:0" />
-      </div>
-
-      {/* Explainer */}
-      <div className="card p-4 mb-4">
-        <div className="text-[10px] font-medium text-g-400 uppercase tracking-wider mb-2">How skills work</div>
-        <div className="text-[12px] text-g-600 font-light leading-[1.6]">
-          Each skill is a markdown document that teaches an agent one thing — a regulatory rule, a platform integration, or a client-specific override.
-          When the user asks something, the supervisor routes the query to the right specialist; RAG retrieval matches the question against skill <strong className="text-g-800 font-medium">trigger patterns</strong> and injects relevant excerpts into the prompt.
-          Swap a skill file to cover a new regulation or onboard a new bank — no Python changes required.
+      {/* Header bar */}
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <div className="min-w-0">
+          <div className="text-[14px] font-medium text-g-800">Skills library</div>
+          <div className="text-[11px] text-g-400 font-light">
+            {mode === 'library'
+              ? 'What each skill teaches the agent, why it matters, and what triggers it.'
+              : 'Operational metrics — hits, last fired, dead triggers, stale skills.'}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <ModeToggle value={mode} onChange={setMode} />
+          <button
+            onClick={refresh}
+            className="text-[11px] px-2.5 py-1 rounded-md border border-g-200 text-g-600 hover:bg-g-50"
+          >
+            Refresh
+          </button>
+          <SkillsHelpButton open={helpOpen} onToggle={() => setHelpOpen((v) => !v)} totalSkills={skills.length} />
         </div>
       </div>
 
-      {loading ? (
-        <div className="card p-8 text-center text-[12px] text-g-400">Loading skills...</div>
-      ) : skills.length === 0 ? (
-        <div className="card p-8 text-center text-[12px] text-g-400">No skills registered.</div>
-      ) : (
-        <div className="space-y-2">
-          {skills.map((skill) => {
-            const tier = TIER_STYLE[skill.tier] || TIER_STYLE.Base;
-            return (
-              <div key={skill.id} className="card overflow-hidden">
-                {/* Header row */}
-                <div className="flex items-start gap-3 px-4 py-3 border-b border-g-100">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-[13px] font-medium text-g-900">{skill.id}</span>
-                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full" style={{ background: tier.bg, color: tier.fg }}>
-                        {skill.tier}
-                      </span>
-                    </div>
-                    <div className="text-[12px] text-g-600 leading-[1.55] font-light">
-                      {skill.description || <span className="italic text-g-400">No description in SKILL.md frontmatter</span>}
-                    </div>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <div className="text-[10px] text-g-400 uppercase tracking-wider">Priority</div>
-                    <div className="text-[13px] font-medium text-g-700">{skill.priority}</div>
-                  </div>
-                </div>
-
-                {/* Trigger patterns */}
-                <div className="px-4 py-2.5 bg-g-50 border-b border-g-100">
-                  <div className="flex items-start gap-2.5">
-                    <span className="text-[10px] font-medium text-g-400 uppercase tracking-wider flex-shrink-0 pt-0.5">Triggers on</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {(skill.trigger_patterns || []).length === 0 ? (
-                        <span className="text-[11px] text-g-400 italic">always loaded</span>
-                      ) : skill.trigger_patterns.map((pat) => (
-                        <span key={pat}
-                          className="text-[10px] font-mono px-2 py-0.5 rounded bg-white border border-g-200 text-g-600">
-                          {pat === '*' ? 'all queries' : `"${pat}"`}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Footer metadata */}
-                <div className="flex items-center gap-4 px-4 py-2 text-[10px] text-g-400 font-light">
-                  <span>{skill.filename}</span>
-                  <span>·</span>
-                  <span>{fmtSize(skill.size_bytes)}</span>
-                  <span>·</span>
-                  <span>Updated {fmtDate(skill.last_modified)}</span>
-                </div>
-              </div>
-            );
-          })}
+      {/* Error surface — visible whenever the API call fails. Avoids the
+         silent-empty-list failure mode the previous version had. */}
+      {error && (
+        <div className="card p-4 mb-4 border-l-[3px]" style={{ borderLeftColor: '#b91c1c' }}>
+          <div className="text-[12px] text-g-700 font-medium mb-1">Couldn't load skills</div>
+          <div className="text-[11px] text-g-500 font-light leading-[1.55]">
+            {error}. Check that the backend is running and that you've restarted it after the
+            most recent code change. Endpoint: <code className="font-mono">/api/skills</code>.
+          </div>
         </div>
       )}
+
+      {/* Operational tiles — useful in both modes */}
+      <SkillsHealthBar health={health} filter={filter} onFilterChange={setFilter} />
+
+      {loading ? (
+        <div className="card p-8 text-center text-[12px] text-g-400">Loading skills…</div>
+      ) : !skills.length ? (
+        <div className="card p-8 text-center text-[12px] text-g-400">
+          No skills returned by <code className="font-mono">/api/skills</code>. The endpoint
+          responded but the list is empty — most likely the backend is running an older
+          version of the code. Restart and reload.
+        </div>
+      ) : mode === 'library' ? (
+        <LibraryGrid skills={skills} onCardClick={openSkill} />
+      ) : (
+        <SkillsTable skills={skills} filter={filter} onRowClick={openSkill} />
+      )}
     </>
+  );
+}
+
+function ModeToggle({ value, onChange }) {
+  const opts = [
+    { id: 'library',    label: 'Library' },
+    { id: 'operations', label: 'Operations' },
+  ];
+  return (
+    <div className="inline-flex rounded-md border border-g-200 overflow-hidden">
+      {opts.map((o, i) => {
+        const active = value === o.id;
+        return (
+          <button
+            key={o.id}
+            onClick={() => onChange(o.id)}
+            className="text-[11px] px-3 py-1 transition-all"
+            style={{
+              background: active ? '#0c1f3d' : '#fff',
+              color: active ? '#fff' : '#4b5563',
+              borderLeft: i === 0 ? 'none' : '1px solid #e5e7eb',
+              fontWeight: active ? 500 : 400,
+            }}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function SkillsHelpButton({ open, onToggle, totalSkills }) {
+  return (
+    <div className="relative">
+      <button
+        onClick={onToggle}
+        title="How skills work"
+        className="w-6 h-6 rounded-full border border-g-300 text-g-500 text-[11px] font-semibold hover:bg-g-50"
+      >
+        ?
+      </button>
+      {open && (
+        <div
+          onClick={onToggle}
+          style={{
+            position: 'absolute', top: '100%', right: 0, marginTop: 8,
+            zIndex: 50, width: 320,
+            background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8,
+            boxShadow: '0 4px 12px rgba(0,0,0,.08)',
+            padding: 12,
+          }}
+        >
+          <div className="text-[10px] font-semibold text-g-400 uppercase tracking-wider mb-2">
+            How skills work
+          </div>
+          <div className="text-[11px] text-g-600 font-light leading-[1.6]">
+            Each skill is a markdown document that teaches an agent one thing — a regulatory rule, a platform integration, or a client-specific override.
+            When the user asks something, the supervisor routes the query to the right specialist; RAG retrieval matches the question against skill <strong className="text-g-800 font-medium">trigger patterns</strong> and injects relevant excerpts into the prompt.
+            Swap a skill file to cover a new regulation or onboard a new bank — no Python changes required.
+          </div>
+          <div className="mt-3 pt-3 border-t border-g-100 grid grid-cols-3 gap-2 text-[10px]">
+            <div>
+              <div className="text-g-400 uppercase tracking-wider">Total</div>
+              <div className="text-g-800 font-medium text-[14px]">{totalSkills}</div>
+            </div>
+            <div>
+              <div className="text-g-400 uppercase tracking-wider">RAG chunks</div>
+              <div className="text-g-800 font-medium text-[14px]">~30</div>
+            </div>
+            <div>
+              <div className="text-g-400 uppercase tracking-wider">Embedding</div>
+              <div className="text-g-800 font-medium text-[12px] font-mono">Titan v2</div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -404,130 +602,275 @@ function DataPipelines() {
   );
 }
 
-/* ── Budget & Caching ───────────────────────────────── */
+/* ── Budget & Caching ─────────────────────────────────
+   Cost-first dashboard. Numbers come live from /api/platform/metrics
+   (cumulative since backend start). When the backend has just started
+   and no chats have been run, every counter sits at 0 — that is honest,
+   not a UI bug, and the empty-state copy says so. */
+
+function fmtUSD(n) {
+  if (n == null || isNaN(n)) return '$0.00';
+  if (n === 0) return '$0.00';
+  if (n < 0.01) return `$${n.toFixed(6)}`;
+  if (n < 1)    return `$${n.toFixed(4)}`;
+  if (n < 100)  return `$${n.toFixed(2)}`;
+  return `$${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+}
+
+function CostRow({ label, value, sub, color }) {
+  return (
+    <div className="flex justify-between items-baseline py-1 text-[12px]">
+      <span className="text-g-500">{label}</span>
+      <div className="text-right">
+        <span className="font-medium font-mono text-[12px]" style={{ color: color || '#1f2937' }}>
+          {value}
+        </span>
+        {sub && <span className="text-[10px] text-g-400 font-light ml-2">{sub}</span>}
+      </div>
+    </div>
+  );
+}
+
+function TierCostCard({ title, tier }) {
+  const cost = tier.cost || {};
+  const knownPricing = cost.pricing_known;
+  return (
+    <div className="card p-4">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-[10px] font-medium text-g-400 uppercase tracking-wider">{title}</div>
+        <span className="text-[10px] font-mono text-g-400 truncate max-w-[180px]" title={cost.model || '—'}>
+          {cost.model || '—'}
+        </span>
+      </div>
+      <div className="text-[22px] font-medium tracking-tight text-g-900 mb-2">
+        {fmtUSD(cost.total_cost)}
+      </div>
+      {!knownPricing && (
+        <div className="text-[10px] text-status-amber mb-2 font-light">
+          No pricing on file for this model — cost shown as zero.
+        </div>
+      )}
+      <div className="border-t border-g-100 pt-2 space-y-0">
+        <CostRow label="Calls"          value={tier.calls.toLocaleString()} />
+        <CostRow label="Input tokens"   value={tier.input_tokens_est.toLocaleString()}  sub={fmtUSD(cost.input_cost)} />
+        <CostRow label="Output tokens"  value={tier.output_tokens_est.toLocaleString()} sub={fmtUSD(cost.output_cost)} />
+        <CostRow label="Cache writes"   value={tier.cache_writes.toLocaleString()} sub={fmtUSD(cost.cache_write_cost)} />
+        <CostRow
+          label="Cache reads"
+          value={tier.cache_reads.toLocaleString()}
+          sub={fmtUSD(cost.cache_read_cost)}
+          color={tier.cache_reads > 0 ? '#1a7f4b' : undefined}
+        />
+        <CostRow
+          label="Trims"
+          value={tier.budget_trims}
+          color={tier.budget_trims > 0 ? '#b45309' : '#1a7f4b'}
+        />
+      </div>
+    </div>
+  );
+}
+
+function fmtTs(iso) {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      year: 'numeric', month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
+  } catch {
+    return iso;
+  }
+}
 
 function BudgetCaching() {
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [resetting, setResetting] = useState(false);
 
-  useEffect(() => {
+  const load = () => {
+    setLoading(true);
     fetch('/api/platform/metrics')
       .then(r => r.json())
       .then(data => { setMetrics(data); setLoading(false); })
       .catch(() => setLoading(false));
-  }, []);
+  };
+  useEffect(() => { load(); }, []);
+
+  const handleReset = () => {
+    const ok = window.confirm(
+      'Reset all LLM cost counters to zero?\n\n' +
+      'This is the only way the numbers get cleared — the backend never resets ' +
+      'them on its own, even on restart. Once cleared, history before now is gone.'
+    );
+    if (!ok) return;
+    setResetting(true);
+    fetch('/api/platform/metrics/reset', { method: 'POST' })
+      .then(r => r.json())
+      .then(data => { setMetrics(data); setResetting(false); })
+      .catch(() => setResetting(false));
+  };
 
   if (loading) return <div className="text-g-400 text-[12px] py-8 text-center">Loading metrics...</div>;
   if (!metrics) return <div className="text-g-400 text-[12px] py-8 text-center">Could not load metrics</div>;
 
   const sup = metrics.supervisor || {};
   const spec = metrics.specialist || {};
+  const totals = metrics.totals || {};
   const budgetCfg = metrics.budget_config || {};
   const caching = metrics.caching || {};
-
-  const totalCalls = sup.calls + spec.calls;
-  const totalTokens = sup.input_tokens_est + spec.input_tokens_est;
-  const totalTrims = sup.budget_trims + spec.budget_trims;
-  const totalCacheReads = caching.total_cache_reads || 0;
-  const totalCacheWrites = caching.total_cache_writes || 0;
+  const isEmpty = (totals.calls || 0) === 0;
 
   return (
     <>
-      {/* Top-level metrics */}
-      <div className="grid grid-cols-4 gap-3 mb-5">
-        <MetricCard label="Total LLM calls" value={totalCalls} sub="supervisor + specialist" />
-        <MetricCard label="Input tokens (est.)" value={totalTokens.toLocaleString()} sub="across all calls" />
-        <MetricCard label="Budget trims" value={totalTrims} sub={totalTrims > 0 ? 'Context was trimmed to fit' : 'No trimming needed'} color={totalTrims > 0 ? '#b45309' : '#1a7f4b'} />
-        <MetricCard label="Cache reads" value={totalCacheReads} sub={totalCacheReads > 0 ? '90% token discount' : 'Accumulating...'} color={totalCacheReads > 0 ? '#1a7f4b' : '#6b7280'} />
-      </div>
-
-      {/* Budget configuration */}
-      <div className="grid grid-cols-2 gap-4 mb-5">
-        <div className="card p-4">
-          <div className="text-[10px] font-medium text-g-400 uppercase tracking-wider mb-3">Supervisor budget</div>
-          <div className="space-y-2">
-            {budgetCfg.supervisor && Object.entries(budgetCfg.supervisor).map(([k, v]) => (
-              <div key={k} className="flex justify-between text-[12px] py-1 border-b border-g-100 last:border-none">
-                <span className="text-g-500">{k.replace(/_/g, ' ')}</span>
-                <span className="font-medium text-g-800 font-mono text-[11px]">{typeof v === 'number' ? v.toLocaleString() : v}</span>
-              </div>
-            ))}
-            <div className="flex justify-between text-[12px] py-1">
-              <span className="text-g-500">Calls</span>
-              <span className="font-medium text-g-800">{sup.calls}</span>
-            </div>
-            <div className="flex justify-between text-[12px] py-1">
-              <span className="text-g-500">Trims</span>
-              <span className="font-medium" style={{ color: sup.budget_trims > 0 ? '#b45309' : '#1a7f4b' }}>{sup.budget_trims}</span>
-            </div>
-          </div>
+      {/* ── Lifetime header bar — first call timestamp + reset action ── */}
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+        <div className="text-[11px] text-g-500 font-light">
+          {metrics.first_call_at ? (
+            <>Counting since <strong className="text-g-700 font-medium">{fmtTs(metrics.first_call_at)}</strong>
+              {metrics.last_call_at && (
+                <> · last call <strong className="text-g-700 font-medium">{fmtTs(metrics.last_call_at)}</strong></>
+              )}
+              {metrics.last_reset_at && (
+                <> · last reset <strong className="text-g-700 font-medium">{fmtTs(metrics.last_reset_at)}</strong></>
+              )}
+            </>
+          ) : (
+            <>No calls recorded yet — counters persist across backend restarts and only clear when you press Reset.</>
+          )}
         </div>
-
-        <div className="card p-4">
-          <div className="text-[10px] font-medium text-g-400 uppercase tracking-wider mb-3">Specialist budget</div>
-          <div className="space-y-2">
-            {budgetCfg.specialist && Object.entries(budgetCfg.specialist).map(([k, v]) => (
-              <div key={k} className="flex justify-between text-[12px] py-1 border-b border-g-100 last:border-none">
-                <span className="text-g-500">{k.replace(/_/g, ' ')}</span>
-                <span className="font-medium text-g-800 font-mono text-[11px]">{typeof v === 'number' ? v.toLocaleString() : v}</span>
-              </div>
-            ))}
-            <div className="flex justify-between text-[12px] py-1">
-              <span className="text-g-500">Calls</span>
-              <span className="font-medium text-g-800">{spec.calls}</span>
-            </div>
-            <div className="flex justify-between text-[12px] py-1">
-              <span className="text-g-500">Trims</span>
-              <span className="font-medium" style={{ color: spec.budget_trims > 0 ? '#b45309' : '#1a7f4b' }}>{spec.budget_trims}</span>
-            </div>
-          </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={load}
+            className="text-[11px] px-2.5 py-1 rounded-md border border-g-200 text-g-600 hover:bg-g-50 transition-colors"
+          >
+            Refresh
+          </button>
+          <button
+            onClick={handleReset}
+            disabled={resetting || isEmpty}
+            className="text-[11px] px-2.5 py-1 rounded-md border transition-colors disabled:opacity-40"
+            style={{ borderColor: '#fbbf24', color: '#b45309', background: '#fef3cd' }}
+            title="Manually zero all counters — never happens automatically"
+          >
+            {resetting ? 'Resetting…' : 'Reset counters'}
+          </button>
         </div>
       </div>
 
-      {/* Caching strategy */}
+      {/* ── Top: $ headline ─────────────────────────────────── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        <MetricCard
+          label="Lifetime cost"
+          value={fmtUSD(totals.total_cost)}
+          sub={`${(totals.calls || 0).toLocaleString()} call${totals.calls === 1 ? '' : 's'}`}
+          color="#0c1f3d"
+        />
+        <MetricCard
+          label="Cache savings"
+          value={fmtUSD(totals.cache_savings)}
+          sub={`${totals.cache_savings_pct || 0}% off vs no caching`}
+          color={(totals.cache_savings || 0) > 0 ? '#1a7f4b' : '#6b7280'}
+        />
+        <MetricCard
+          label="Tokens (in / out)"
+          value={`${(totals.input_tokens || 0).toLocaleString()} / ${(totals.output_tokens || 0).toLocaleString()}`}
+          sub="cumulative"
+        />
+        <MetricCard
+          label="Cache hits / writes"
+          value={`${(totals.cache_reads || 0).toLocaleString()} / ${(totals.cache_writes || 0).toLocaleString()}`}
+          sub="reads pay 0.10×, writes 1.25×"
+          color={(totals.cache_reads || 0) > 0 ? '#1a7f4b' : '#6b7280'}
+        />
+      </div>
+
+      {/* Empty-state explainer — visible only before any LLM call */}
+      {isEmpty && (
+        <div className="card p-4 mb-5 border-l-[3px]" style={{ borderLeftColor: '#b45309' }}>
+          <div className="text-[12px] text-g-700 font-medium mb-1">No LLM calls recorded yet</div>
+          <div className="text-[11px] text-g-500 font-light leading-[1.6]">
+            Counters persist to disk and survive backend restarts — they only ever
+            reset when you press the Reset button above. Run a chat or a reconciliation
+            and the dollar figures, token counts, and cache stats will populate here.
+          </div>
+        </div>
+      )}
+
+      {/* ── Per-tier breakdown ──────────────────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+        <TierCostCard title="Supervisor" tier={sup} />
+        <TierCostCard title="Specialist" tier={spec} />
+      </div>
+
+      {/* ── Without-caching comparison ──────────────────────── */}
       <div className="card p-4 mb-5">
-        <div className="text-[10px] font-medium text-g-400 uppercase tracking-wider mb-3">Prompt caching</div>
-        <div className="text-[12px] text-g-600 leading-relaxed font-light mb-3">
-          {caching.strategy}
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-[10px] font-medium text-g-400 uppercase tracking-wider">
+            Cache-aware pricing — lifetime
+          </div>
+          <span className="text-[10px] text-g-400 font-light">{caching.strategy || ''}</span>
         </div>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-[12px]">
           <div className="bg-g-50 rounded-lg p-3 border border-g-200">
-            <div className="text-[10px] text-g-400 uppercase tracking-wider mb-1">Cache writes</div>
-            <div className="text-[18px] font-medium text-g-800">{totalCacheWrites}</div>
-            <div className="text-[10px] text-g-400 mt-0.5">+25% write surcharge</div>
+            <div className="text-[10px] text-g-400 uppercase tracking-wider mb-1">Actual spend</div>
+            <div className="text-[18px] font-medium text-g-900">{fmtUSD(totals.total_cost)}</div>
+            <div className="text-[10px] text-g-400 mt-0.5 font-light">cache-aware</div>
           </div>
           <div className="bg-g-50 rounded-lg p-3 border border-g-200">
-            <div className="text-[10px] text-g-400 uppercase tracking-wider mb-1">Cache reads</div>
-            <div className="text-[18px] font-medium" style={{ color: totalCacheReads > 0 ? '#1a7f4b' : '#6b7280' }}>{totalCacheReads}</div>
-            <div className="text-[10px] text-g-400 mt-0.5">90% token discount</div>
+            <div className="text-[10px] text-g-400 uppercase tracking-wider mb-1">If no caching</div>
+            <div className="text-[18px] font-medium text-g-700">{fmtUSD(totals.cost_without_caching)}</div>
+            <div className="text-[10px] text-g-400 mt-0.5 font-light">all tokens at base input rate</div>
           </div>
           <div className="bg-g-50 rounded-lg p-3 border border-g-200">
-            <div className="text-[10px] text-g-400 uppercase tracking-wider mb-1">Breakpoints</div>
-            <div className="text-[18px] font-medium text-g-800">4 max</div>
-            <div className="text-[10px] text-g-400 mt-0.5">System + messages</div>
+            <div className="text-[10px] text-g-400 uppercase tracking-wider mb-1">Saved by caching</div>
+            <div className="text-[18px] font-medium" style={{ color: (totals.cache_savings || 0) > 0 ? '#1a7f4b' : '#6b7280' }}>
+              {fmtUSD(totals.cache_savings)}
+            </div>
+            <div className="text-[10px] text-g-400 mt-0.5 font-light">{totals.cache_savings_pct || 0}%</div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Budget configuration (static — these are limits, not metrics) ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+        <div className="card p-4">
+          <div className="text-[10px] font-medium text-g-400 uppercase tracking-wider mb-3">Supervisor budget config</div>
+          <div className="space-y-1">
+            {budgetCfg.supervisor && Object.entries(budgetCfg.supervisor).map(([k, v]) => (
+              <CostRow key={k} label={k.replace(/_/g, ' ')} value={typeof v === 'number' ? v.toLocaleString() : v} />
+            ))}
+          </div>
+        </div>
+        <div className="card p-4">
+          <div className="text-[10px] font-medium text-g-400 uppercase tracking-wider mb-3">Specialist budget config</div>
+          <div className="space-y-1">
+            {budgetCfg.specialist && Object.entries(budgetCfg.specialist).map(([k, v]) => (
+              <CostRow key={k} label={k.replace(/_/g, ' ')} value={typeof v === 'number' ? v.toLocaleString() : v} />
+            ))}
           </div>
         </div>
       </div>
 
       {/* How it works */}
       <div className="card p-4">
-        <div className="text-[10px] font-medium text-g-400 uppercase tracking-wider mb-3">How budget management works</div>
+        <div className="text-[10px] font-medium text-g-400 uppercase tracking-wider mb-3">How costs are computed</div>
         <div className="space-y-3 text-[12px] text-g-600 font-light leading-relaxed">
           <div className="flex gap-3">
             <div className="w-6 h-6 rounded-full bg-navy-light flex items-center justify-center text-[10px] font-bold text-navy flex-shrink-0">1</div>
-            <div><span className="font-medium text-g-800">Estimate</span> — Before each LLM call, PromptBudgetManager estimates input tokens from system prompt + conversation history</div>
+            <div><span className="font-medium text-g-800">Record &amp; persist</span> — Each LLM call increments per-tier token counters and is written to data/llm_metrics.json. Counters survive backend restarts and only ever reset when the user clicks Reset.</div>
           </div>
           <div className="flex gap-3">
             <div className="w-6 h-6 rounded-full bg-navy-light flex items-center justify-center text-[10px] font-bold text-navy flex-shrink-0">2</div>
-            <div><span className="font-medium text-g-800">Allocate</span> — Dynamic max_tokens is calculated: min(max_output, usable_window - input_tokens). Prevents truncated responses</div>
+            <div><span className="font-medium text-g-800">Price</span> — model_pricing.py looks up USD/M-token rates by model ID. If the model isn’t in the table the cost shown is $0 and a warning appears on the tier card.</div>
           </div>
           <div className="flex gap-3">
             <div className="w-6 h-6 rounded-full bg-navy-light flex items-center justify-center text-[10px] font-bold text-navy flex-shrink-0">3</div>
-            <div><span className="font-medium text-g-800">Trim</span> — If supplemental content (RAG, domain knowledge) exceeds budget, it is trimmed at markdown section boundaries</div>
+            <div><span className="font-medium text-g-800">Adjust for cache</span> — Anthropic charges 1.25× the input rate for cache writes and 0.10× for cache reads. Cache savings = what you would have paid without caching minus what you actually paid.</div>
           </div>
           <div className="flex gap-3">
             <div className="w-6 h-6 rounded-full bg-navy-light flex items-center justify-center text-[10px] font-bold text-navy flex-shrink-0">4</div>
-            <div><span className="font-medium text-g-800">Cache</span> — System prompts are marked with Anthropic ephemeral cache control. Repeated calls with same prefix get 90% input token discount</div>
+            <div><span className="font-medium text-g-800">Caveat</span> — Input token counts are estimated from streamed chunk size, not from Bedrock usage metadata, so the absolute dollar figure should be read as “order of magnitude”, not a billing-grade number.</div>
           </div>
         </div>
       </div>
@@ -566,7 +909,7 @@ export default function Platform() {
         ))}
       </div>
 
-      {activeTab === 'agents' && <AgentObservatory />}
+      {activeTab === 'agents' && <AgentStudio />}
       {activeTab === 'budget' && <BudgetCaching />}
       {activeTab === 'skills' && <SkillsLibrary />}
       {activeTab === 'prompts' && <PromptStudio />}

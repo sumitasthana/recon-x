@@ -122,6 +122,11 @@ def search_regulatory_docs(query: str) -> str:
 
     query: natural-language search query, e.g. 'HQLA classification rules'
     """
+    import time
+    import uuid
+    from datetime import datetime, timezone
+
+    t0 = time.monotonic()
     try:
         retriever = get_retriever(k=4)
         docs = retriever.invoke(query)
@@ -133,9 +138,89 @@ def search_regulatory_docs(query: str) -> str:
             source = doc.metadata.get("source", "unknown")
             sections.append(f"--- [{i}] {source} ---\n{doc.page_content}")
 
+        # ── Telemetry — group retrieved chunks by skill (derived from the
+        # source path's first directory segment under skills/). One
+        # SkillInvocation per skill that contributed at least one chunk.
+        try:
+            _log_rag_telemetry(
+                query=query,
+                docs=docs,
+                duration_ms=int((time.monotonic() - t0) * 1000),
+            )
+        except Exception:
+            pass  # telemetry never breaks the tool result
+
         return "\n\n".join(sections)
     except Exception as e:
         return f"Error searching regulatory docs: {e}"
+
+
+def _log_rag_telemetry(query: str, docs, duration_ms: int) -> None:
+    """Bucket retrieved chunks by skill and log one invocation per skill.
+
+    Skill id is derived from the chunk's source path:
+        'builtin/domain_fr2052a/SKILL.md' → 'domain_fr2052a'
+        'baseline/SKILL.md'               → 'baseline'
+    Anything outside builtin/<name>/ falls back to the basename's stem.
+
+    matched_triggers is a substring scan of the query against each skill's
+    registered trigger phrases — best-effort, since the FAISS retriever
+    doesn't expose which trigger fired.
+    """
+    import os
+    import uuid
+    import json
+    import yaml
+    from datetime import datetime, timezone
+    from telemetry.models import SkillInvocation
+    from telemetry.store import log_invocation
+
+    def _skill_id_from_source(source: str) -> str:
+        # 'builtin/domain_fr2052a/SKILL.md' → 'domain_fr2052a'
+        parts = source.replace("\\", "/").split("/")
+        if len(parts) >= 2 and parts[0] == "builtin":
+            return parts[1]
+        return os.path.splitext(parts[-1])[0]
+
+    # Bucket {skill_id: [(score, chunk_source), ...]}
+    grouped: dict[str, list] = {}
+    chunks_per_skill: dict[str, list[str]] = {}
+    for d in docs:
+        source = d.metadata.get("source", "unknown")
+        sid = _skill_id_from_source(source)
+        grouped.setdefault(sid, []).append(d)
+        chunks_per_skill.setdefault(sid, []).append(source)
+
+    # Trigger lookup from registry.yaml
+    triggers_by_skill: dict[str, list[str]] = {}
+    try:
+        with open(os.path.join("skills", "registry.yaml"), encoding="utf-8") as f:
+            reg = yaml.safe_load(f) or {}
+        for s in reg.get("skills", []):
+            triggers_by_skill[s["name"]] = s.get("trigger_patterns", [])
+    except Exception:
+        pass
+
+    q_lower = query.lower()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)  # naive UTC — matches DuckDB TIMESTAMP
+    skills = list(grouped.keys())
+    per_skill_ms = max(1, duration_ms // max(1, len(skills)))
+    for sid in skills:
+        triggers = triggers_by_skill.get(sid, [])
+        matched = [t for t in triggers if t and t != "*" and t.lower() in q_lower]
+        log_invocation(SkillInvocation(
+            invocation_id=str(uuid.uuid4()),
+            skill_id=sid,
+            query_text=query[:500],
+            matched_triggers=matched,
+            retrieval_score=1.0,  # FAISS retriever doesn't expose per-doc scores; placeholder
+            chunks_retrieved=chunks_per_skill[sid],
+            break_id=None,
+            classification_result=None,
+            classification_confidence=None,
+            timestamp=now,
+            duration_ms=per_skill_ms,
+        ))
 
 
 TOOLS = [list_available_reports, inspect_break_report, explain_break, get_recon_summary, search_regulatory_docs]

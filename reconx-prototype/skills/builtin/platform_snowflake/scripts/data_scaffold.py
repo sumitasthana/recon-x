@@ -224,18 +224,29 @@ def _generate_dim_counterparty_data():
 
 
 def _generate_dim_fx_rate_data(report_date):
-    """Generate synthetic DIM_FX_RATE data for a report date."""
-    rates = [
-        (1, 'EUR', report_date, 'BLOOMBERG_BFIX_EOD', 1.0825, 0.9238, 'GOOD'),
-        (2, 'GBP', report_date, 'BLOOMBERG_BFIX_EOD', 1.2650, 0.7905, 'GOOD'),
-        (3, 'JPY', report_date, 'BLOOMBERG_BFIX_EOD', 0.0067, 149.25, 'GOOD'),
-        (4, 'CAD', report_date, 'BLOOMBERG_BFIX_EOD', 0.7250, 1.3793, 'GOOD'),
-        (5, 'AUD', report_date, 'BLOOMBERG_BFIX_EOD', 0.6530, 1.5314, 'GOOD'),
-        (6, 'CHF', report_date, 'BLOOMBERG_BFIX_EOD', 1.1350, 0.8811, 'GOOD'),
-        (7, 'CNY', report_date, 'BLOOMBERG_BFIX_EOD', 0.1385, 7.2200, 'STALE'),
-        (8, 'MXN', report_date, 'BLOOMBERG_BFIX_EOD', 0.0490, 20.408, 'GOOD'),
+    """Generate synthetic DIM_FX_RATE data for a report date.
+
+    Apply a small daily drift (~0.2% vol) seeded by report_date so each day's
+    Bloomberg rate diverges from the ECB reference by a realistic amount.
+    """
+    import random
+    rng = random.Random(hash(str(report_date)))
+    base_rates = [
+        ('EUR', 1.0825, 'GOOD'),
+        ('GBP', 1.2650, 'GOOD'),
+        ('JPY', 0.0067, 'GOOD'),
+        ('CAD', 0.7250, 'GOOD'),
+        ('AUD', 0.6530, 'GOOD'),
+        ('CHF', 1.1350, 'GOOD'),
+        ('CNY', 0.1385, 'STALE'),
+        ('MXN', 0.0490, 'GOOD'),
     ]
-    return rates
+    rows = []
+    for i, (ccy, base, quality) in enumerate(base_rates):
+        drift = rng.gauss(0, 0.002)
+        rate = round(base * (1 + drift), 8)
+        rows.append((i + 1, ccy, report_date, 'BLOOMBERG_BFIX_EOD', rate, round(1 / rate, 8), quality))
+    return rows
 
 
 def _generate_dim_maturity_bucket_data():
@@ -589,7 +600,7 @@ def generate_synthetic_positions(config: ReconConfig):
         global_pid = (max_pid_row[0] if max_pid_row else 0) + 1
 
         for scenario_id, sc in SCENARIO_CONFIGS.items():
-            rng = random.Random(hash(scenario_id))
+            rng = random.Random(hash(scenario_id + str(report_date)))
             brk001_n = sc["brk001_eur_count"]
             brk002_n = sc["brk002_hqla_count"]
             brk003_n = sc["brk003_lei_count"]
