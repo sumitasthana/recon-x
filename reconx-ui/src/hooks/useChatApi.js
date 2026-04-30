@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { apiUrl } from '../lib/api';
 
 /**
  * Hook for streaming chat with the ReconX agent via POST /api/chat (SSE).
@@ -37,7 +38,7 @@ export function useChatApi() {
     const controller = new AbortController();
     abortRef.current = controller;
 
-    fetch('/api/chat', {
+    fetch(apiUrl('/api/chat'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { apiUrl } from '../../lib/api';
 
 /* ── Palette ── */
 const C = {
@@ -464,7 +465,7 @@ function RunRow({ run, isExpanded, onToggle }) {
   useEffect(() => {
     if (isExpanded && !detail && !loadingDetail) {
       setLoadingDetail(true);
-      fetch(`/api/observatory/${run.report_type}/${run.date}`)
+      fetch(apiUrl(`/api/observatory/${run.report_type}/${run.date}`))
         .then(r => r.json())
         .then(data => { setDetail(data); setLoadingDetail(false); })
         .catch(() => setLoadingDetail(false));
@@ -772,7 +773,7 @@ export default function Observatory({ reportType, reconPhase }) {
 
   // Fetch runs — always fresh on mount + when reconPhase transitions to 'done'
   const fetchRuns = () => {
-    fetch('/api/observatory')
+    fetch(apiUrl('/api/observatory'))
       .then((r) => r.json())
       .then((data) => { setAllRuns(data); setLoading(false); })
       .catch(() => setLoading(false));

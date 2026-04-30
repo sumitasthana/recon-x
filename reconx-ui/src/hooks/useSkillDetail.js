@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { apiUrl } from '../lib/api';
 
 /**
  * Fetches a SkillDetail (slide-over panel data) on demand when skillId
@@ -17,7 +18,7 @@ export function useSkillDetail(skillId) {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetch(`/api/skills/${skillId}`)
+    fetch(apiUrl(`/api/skills/${skillId}`))
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
@@ -43,7 +44,7 @@ export function useSkillContent(skillId) {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetch(`/api/skills/${skillId}/content`)
+    fetch(apiUrl(`/api/skills/${skillId}/content`))
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.text();

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
+import { apiUrl } from '../lib/api';
 
 export function useTables() {
   const [tables, setTables] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/tables')
+    fetch(apiUrl('/api/tables'))
       .then((res) => res.json())
       .then((data) => {
         setTables(data);
@@ -24,7 +25,7 @@ export function useTableSchema(tableName) {
   useEffect(() => {
     if (!tableName) { setSchema(null); return; }
     setLoading(true);
-    fetch(`/api/tables/${tableName}/schema`)
+    fetch(apiUrl(`/api/tables/${tableName}/schema`))
       .then((res) => res.json())
       .then((data) => {
         setSchema(data);
@@ -43,7 +44,7 @@ export function useTableSample(tableName, limit = 10) {
   useEffect(() => {
     if (!tableName) { setSample(null); return; }
     setLoading(true);
-    fetch(`/api/tables/${tableName}/sample?limit=${limit}`)
+    fetch(apiUrl(`/api/tables/${tableName}/sample?limit=${limit}`))
       .then((res) => res.json())
       .then((data) => {
         setSample(data);

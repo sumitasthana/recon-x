@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { apiUrl } from '../lib/api';
 
 /**
  * Hook to fetch the list of registered skills.
@@ -8,7 +9,7 @@ export function useSkills() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/skills')
+    fetch(apiUrl('/api/skills'))
       .then((r) => r.json())
       .then((data) => {
         setSkills(data);
@@ -33,7 +34,7 @@ export function useSkillContent(skillId) {
       return;
     }
     setLoading(true);
-    fetch(`/api/skills/${skillId}`)
+    fetch(apiUrl(`/api/skills/${skillId}`))
       .then((r) => r.json())
       .then((data) => {
         setSkill(data);
@@ -45,7 +46,7 @@ export function useSkillContent(skillId) {
   // Allow manual refresh after save
   const refresh = useCallback(() => {
     if (!skillId) return;
-    fetch(`/api/skills/${skillId}`)
+    fetch(apiUrl(`/api/skills/${skillId}`))
       .then((r) => r.json())
       .then((data) => setSkill(data))
       .catch(() => {});
@@ -68,7 +69,7 @@ export function useSaveSkill() {
     setSuccess(false);
 
     try {
-      const res = await fetch(`/api/skills/${skillId}`, {
+      const res = await fetch(apiUrl(`/api/skills/${skillId}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content }),

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { apiUrl } from '../lib/api';
 
 export function useBreakRules(reportId) {
   const [breaks, setBreaks] = useState([]);
@@ -16,7 +17,7 @@ export function useBreakRules(reportId) {
     setLoading(true);
     setError(null);
 
-    fetch(`/api/reports/${reportId}/breaks`)
+    fetch(apiUrl(`/api/reports/${reportId}/breaks`))
       .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();

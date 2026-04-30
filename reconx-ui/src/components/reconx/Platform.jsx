@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import MetricCard from './MetricCard';
+import { apiUrl } from '../../lib/api';
 import { useSkillsTelemetry } from '../../hooks/useSkillsTelemetry';
 import SkillsHealthBar from './skills/SkillsHealthBar';
 import SkillsTable from './skills/SkillsTable';
@@ -224,7 +225,7 @@ function AgentStudio() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/platform/agents')
+    fetch(apiUrl('/api/platform/agents'))
       .then((r) => r.json())
       .then((data) => { setAgents(data || []); setLoading(false); })
       .catch(() => setLoading(false));
@@ -464,7 +465,7 @@ function PromptStudio() {
   const [saveMsg, setSaveMsg] = useState('');
 
   useEffect(() => {
-    fetch('/api/platform/prompts')
+    fetch(apiUrl('/api/platform/prompts'))
       .then(r => r.json())
       .then(data => {
         setPrompts(data);
@@ -475,7 +476,7 @@ function PromptStudio() {
 
   useEffect(() => {
     if (!selected) return;
-    fetch(`/api/platform/prompts/${selected}`)
+    fetch(apiUrl(`/api/platform/prompts/${selected}`))
       .then(r => r.json())
       .then(data => {
         // Reconstruct YAML for the editor
@@ -501,7 +502,7 @@ function PromptStudio() {
     if (!selected || !editYaml.trim()) return;
     setSaving(true);
     setSaveMsg('');
-    fetch(`/api/platform/prompts/${selected}`, {
+    fetch(apiUrl(`/api/platform/prompts/${selected}`), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ yaml_content: editYaml }),
@@ -513,7 +514,7 @@ function PromptStudio() {
       .then(data => {
         setSaveMsg(`Saved v${data.version}`);
         // Refresh list
-        fetch('/api/platform/prompts').then(r => r.json()).then(setPrompts);
+        fetch(apiUrl('/api/platform/prompts')).then(r => r.json()).then(setPrompts);
         setTimeout(() => setSaveMsg(''), 3000);
       })
       .catch(() => setSaveMsg('Error saving'))
@@ -690,7 +691,7 @@ function BudgetCaching() {
 
   const load = () => {
     setLoading(true);
-    fetch('/api/platform/metrics')
+    fetch(apiUrl('/api/platform/metrics'))
       .then(r => r.json())
       .then(data => { setMetrics(data); setLoading(false); })
       .catch(() => setLoading(false));
@@ -705,7 +706,7 @@ function BudgetCaching() {
     );
     if (!ok) return;
     setResetting(true);
-    fetch('/api/platform/metrics/reset', { method: 'POST' })
+    fetch(apiUrl('/api/platform/metrics/reset'), { method: 'POST' })
       .then(r => r.json())
       .then(data => { setMetrics(data); setResetting(false); })
       .catch(() => setResetting(false));

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiUrl } from '../../lib/api';
 
 /**
  * Audit Log — Kratos-style expandable daily run entries with full regulatory journal.
@@ -86,7 +87,7 @@ export default function AuditLog({ reportType }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/observatory')
+    fetch(apiUrl('/api/observatory'))
       .then((r) => r.json())
       .then((data) => {
         const mapped = data.map((run) => ({

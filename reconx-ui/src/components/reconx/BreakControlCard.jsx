@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { apiUrl } from '../../lib/api';
 
 const SEVERITY_COLORS = {
   CRITICAL: '#b91c1c',
@@ -138,7 +139,7 @@ function buildActionsForBreak(brk) {
     {
       kind: 'sql',
       label: 'Apply SQL fix',
-      endpoint: '/api/remediation/apply_sql',
+      endpoint: apiUrl('/api/remediation/apply_sql'),
       steps: [
         `Validate SQL against allow-list (UPDATE/INSERT only)`,
         `Open transaction on the local DuckDB`,
@@ -157,7 +158,7 @@ function buildActionsForBreak(brk) {
     {
       kind: 'jira',
       label: 'Create JIRA ticket',
-      endpoint: '/api/remediation/create_jira',
+      endpoint: apiUrl('/api/remediation/create_jira'),
       steps: [
         `Title: [${brk.category || 'BREAK'}] ${brk.break_id} on ${table}`,
         `Body: ${issue}; root cause: ${rootCause}`,
@@ -178,7 +179,7 @@ function buildActionsForBreak(brk) {
     {
       kind: 'mapping',
       label: 'Push mapping update',
-      endpoint: '/api/remediation/push_mapping',
+      endpoint: apiUrl('/api/remediation/push_mapping'),
       steps: [
         `Build <MappingProposal> covering ${table}`,
         'Persist proposal as XML under data/output/remediation/mapping_proposals/',
@@ -249,7 +250,7 @@ function RemediationActions({ brk }) {
   const actions = buildActionsForBreak(brk);
 
   const refreshAudit = useCallback(() => {
-    fetch(`/api/remediation/audit?break_id=${encodeURIComponent(brk.break_id)}&limit=10`)
+    fetch(apiUrl(`/api/remediation/audit?break_id=${encodeURIComponent(brk.break_id)}&limit=10`))
       .then((r) => (r.ok ? r.json() : []))
       .then((d) => setAuditEntries(Array.isArray(d) ? d : []))
       .catch(() => setAuditEntries([]));

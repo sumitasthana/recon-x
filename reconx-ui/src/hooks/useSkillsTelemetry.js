@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { apiUrl } from '../lib/api';
 
 /**
  * Hook for the Skills Observatory page — fetches the list of SkillSummary
@@ -20,8 +21,8 @@ export function useSkillsTelemetry() {
     setLoading(true);
     setError(null);
     Promise.all([
-      fetch('/api/skills').then((r) => r.json()),
-      fetch('/api/skills/health').then((r) => r.json()),
+      fetch(apiUrl('/api/skills')).then((r) => r.json()),
+      fetch(apiUrl('/api/skills/health')).then((r) => r.json()),
     ])
       .then(([list, h]) => {
         setSkills(Array.isArray(list) ? list : []);

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { apiUrl } from '../lib/api';
 
 /**
  * Hook for fetching report list from GET /api/reports.
@@ -8,7 +9,7 @@ export function useReports() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/reports')
+    fetch(apiUrl('/api/reports'))
       .then((res) => res.json())
       .then((data) => {
         setReports(data);
@@ -30,7 +31,7 @@ export function useReportContext(reportId) {
   useEffect(() => {
     if (!reportId) return;
     setLoading(true);
-    fetch(`/api/reports/${reportId}/context`)
+    fetch(apiUrl(`/api/reports/${reportId}/context`))
       .then((res) => res.json())
       .then((data) => {
         setContext(data);
@@ -52,7 +53,7 @@ export function useReportSteps(reportId) {
   useEffect(() => {
     if (!reportId) return;
     setLoading(true);
-    fetch(`/api/reports/${reportId}/steps`)
+    fetch(apiUrl(`/api/reports/${reportId}/steps`))
       .then((res) => res.json())
       .then((data) => {
         setSteps(data);
@@ -104,7 +105,7 @@ export function useReconRun(totalSteps = 4) {
       }
 
       // Use fetch with ReadableStream for SSE (POST not supported by EventSource)
-      fetch('/api/recon/run', {
+      fetch(apiUrl('/api/recon/run'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
