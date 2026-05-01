@@ -135,26 +135,11 @@ function buildActionsForBreak(brk) {
   const priority = (severity === 'HIGH' || severity === 'CRITICAL') ? 'High'
                  : severity === 'MEDIUM' ? 'Medium' : 'Low';
 
+  // Only "Create JIRA ticket" is exposed in the UI.
+  // The 'apply_sql' and 'push_mapping' backend endpoints still exist —
+  // they're just hidden from the breaks panel for now. Re-enable by
+  // adding their action objects back to this list.
   return [
-    {
-      kind: 'sql',
-      label: 'Apply SQL fix',
-      endpoint: apiUrl('/api/remediation/apply_sql'),
-      steps: [
-        `Validate SQL against allow-list (UPDATE/INSERT only)`,
-        `Open transaction on the local DuckDB`,
-        `Run UPDATE on ${table} — recommendation: ${recommendation}`,
-        'Rollback on error; commit on success',
-        `Append entry to data/output/remediation/audit.jsonl tagged ${brk.break_id}`,
-      ],
-      requires: 'Local DuckDB write access (sandboxed; not a production system)',
-      buildBody: (confirm) => ({
-        break_id: brk.break_id,
-        report_id: 'fr2052a',
-        sql: `UPDATE ${table} SET remediation_note = 'fix:${brk.break_id}' WHERE 1=0`,
-        confirm,
-      }),
-    },
     {
       kind: 'jira',
       label: 'Create JIRA ticket',
@@ -173,26 +158,6 @@ function buildActionsForBreak(brk) {
         details: `Root cause: ${rootCause}\n\nRecommended action: ${recommendation}\n\nTable: ${table}\nSeverity: ${severity}`,
         break_type: brk.category || 'Reconciliation Break',
         priority,
-        confirm,
-      }),
-    },
-    {
-      kind: 'mapping',
-      label: 'Push mapping update',
-      endpoint: apiUrl('/api/remediation/push_mapping'),
-      steps: [
-        `Build <MappingProposal> covering ${table}`,
-        'Persist proposal as XML under data/output/remediation/mapping_proposals/',
-        'Reviewer manually applies to AxiomSL config (not auto-pushed)',
-        `Re-run FR 2052a recon for ${brk.report_date || 'the impacted date'} for verification`,
-      ],
-      requires: 'Local filesystem only — does NOT edit the live AxiomSL config',
-      buildBody: (confirm) => ({
-        break_id: brk.break_id,
-        report_form: 'FR2052a',
-        filter_or_rule: `Lookup_${brk.category || 'BREAK'}`,
-        current_value: brk.break_id,
-        target_value: 'REMEDIATED',
         confirm,
       }),
     },

@@ -59,9 +59,9 @@ export const PRESENCE_COLOR = {
   external: '#6d28d9',  // status.purple — different system
 };
 export const PRESENCE_LABEL = {
-  real:     'In DuckDB',
-  stub:     'Conceptual · not in prototype',
-  external: 'External system',
+  real:     'In DB',
+  stub:     'Conceptual',
+  external: 'External System',
 };
 
 function PresenceStripe({ present }) {

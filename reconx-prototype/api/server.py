@@ -1290,12 +1290,56 @@ def _get_db_path():
     return ReconConfig().db_path
 
 
+# ── Schema/table caches ────────────────────────────────
+# Schema (columns, types, nullable, position) is immutable for the
+# lifetime of the process — cache forever. Row counts are cheap-but-
+# not-free over many tables, cache for 30s. Sample rows stay uncached.
+# Also: ensure_database / ensure_fr2590_tables run only once per
+# process — they were being called on every request, doing DDL +
+# scaffold work each time.
+
+import threading as _threading
+import time as _time
+
+_DB_INIT_LOCK = _threading.Lock()
+_DB_INIT_DONE = False
+
+_TABLES_CACHE: dict = {"data": None, "ts": 0.0}
+_SCHEMA_CACHE: dict = {}    # {table_name: {"columns": ..., "type": ..., "row_count": int, "ts": float}}
+_CACHE_TTL_SECONDS = 30
+
+
+def _ensure_db_init_once():
+    """Run scaffold/DDL helpers only on the first hit per process."""
+    global _DB_INIT_DONE
+    if _DB_INIT_DONE:
+        return
+    with _DB_INIT_LOCK:
+        if _DB_INIT_DONE:
+            return
+        cfg = ReconConfig()
+        ensure_database(cfg)
+        ensure_fr2590_tables(cfg)
+        _DB_INIT_DONE = True
+
+
+def invalidate_schema_caches():
+    """Clear caches — call from any endpoint that mutates schema (none today,
+    but exposed so tests / future writes can flush cleanly)."""
+    _TABLES_CACHE["data"] = None
+    _TABLES_CACHE["ts"] = 0.0
+    _SCHEMA_CACHE.clear()
+
+
 @app.get("/api/tables")
 def list_tables():
-    """List all tables and views in the source database."""
+    """List all tables and views with row counts. Cached for 30s."""
+    now = _time.monotonic()
+    if _TABLES_CACHE["data"] is not None and (now - _TABLES_CACHE["ts"]) < _CACHE_TTL_SECONDS:
+        return _TABLES_CACHE["data"]
+
+    _ensure_db_init_once()
     config = ReconConfig()
-    ensure_database(config)
-    ensure_fr2590_tables(config)
     conn = duckdb.connect(config.db_path, read_only=True)
     try:
         results = conn.execute("""
@@ -1307,14 +1351,27 @@ def list_tables():
                 table_name
         """).fetchall()
 
-        tables = []
-        for name, ttype in results:
-            row_count = conn.execute(f'SELECT COUNT(*) FROM "{name}"').fetchone()[0]
-            tables.append({
+        # One UNION ALL roundtrip for all row counts instead of N queries.
+        # Cheaper on Windows where each connection contends with the writer.
+        names = [r[0] for r in results]
+        counts: dict[str, int] = {}
+        if names:
+            count_sql = " UNION ALL ".join(
+                f'SELECT \'{n}\' AS name, COUNT(*) AS n FROM "{n}"' for n in names
+            )
+            for name, n in conn.execute(count_sql).fetchall():
+                counts[name] = n
+
+        tables = [
+            {
                 "name": name,
                 "type": "view" if ttype == "VIEW" else "table",
-                "row_count": row_count,
-            })
+                "row_count": counts.get(name, 0),
+            }
+            for name, ttype in results
+        ]
+        _TABLES_CACHE["data"] = tables
+        _TABLES_CACHE["ts"] = now
         return tables
     finally:
         conn.close()
@@ -1322,12 +1379,33 @@ def list_tables():
 
 @app.get("/api/tables/{table_name}/schema")
 def get_table_schema(table_name: str):
-    """Get column definitions for a table or view."""
+    """Get column definitions for a table or view. Schema cached forever
+    (immutable for process lifetime); row count refreshed every 30s."""
+    cached = _SCHEMA_CACHE.get(table_name)
+    now = _time.monotonic()
+
+    # Schema part can be served entirely from cache
+    if cached:
+        # If row count is fresh enough, return as-is
+        if (now - cached["ts"]) < _CACHE_TTL_SECONDS:
+            return _row_count_response(cached)
+        # Else refresh row count only — keep the static columns
+        config = ReconConfig()
+        conn = duckdb.connect(config.db_path, read_only=True)
+        try:
+            cached["row_count"] = conn.execute(
+                f'SELECT COUNT(*) FROM "{table_name}"'
+            ).fetchone()[0]
+            cached["ts"] = now
+        finally:
+            conn.close()
+        return _row_count_response(cached)
+
+    # Cold miss — fetch everything and cache the immutable parts
+    _ensure_db_init_once()
     config = ReconConfig()
-    ensure_database(config)
     conn = duckdb.connect(config.db_path, read_only=True)
     try:
-        # Verify table exists
         exists = conn.execute("""
             SELECT COUNT(*) FROM information_schema.tables
             WHERE table_schema = 'main' AND table_name = ?
@@ -1335,7 +1413,6 @@ def get_table_schema(table_name: str):
         if not exists:
             raise HTTPException(status_code=404, detail=f"Table '{table_name}' not found")
 
-        # Get column info
         columns = conn.execute("""
             SELECT column_name, data_type, is_nullable, column_default, ordinal_position
             FROM information_schema.columns
@@ -1343,7 +1420,6 @@ def get_table_schema(table_name: str):
             ORDER BY ordinal_position
         """, [table_name]).fetchall()
 
-        # Get table type
         ttype = conn.execute("""
             SELECT table_type FROM information_schema.tables
             WHERE table_schema = 'main' AND table_name = ?
@@ -1351,10 +1427,11 @@ def get_table_schema(table_name: str):
 
         row_count = conn.execute(f'SELECT COUNT(*) FROM "{table_name}"').fetchone()[0]
 
-        return {
+        entry = {
             "name": table_name,
             "type": "view" if ttype == "VIEW" else "table",
             "row_count": row_count,
+            "ts": now,
             "columns": [
                 {
                     "name": col[0],
@@ -1366,15 +1443,22 @@ def get_table_schema(table_name: str):
                 for col in columns
             ],
         }
+        _SCHEMA_CACHE[table_name] = entry
+        return _row_count_response(entry)
     finally:
         conn.close()
 
 
+def _row_count_response(entry: dict) -> dict:
+    """Strip the internal `ts` field from a cached entry."""
+    return {k: v for k, v in entry.items() if k != "ts"}
+
+
 @app.get("/api/tables/{table_name}/sample")
 def get_table_sample(table_name: str, limit: int = Query(default=10, le=100)):
-    """Get sample rows from a table or view."""
+    """Get sample rows from a table or view (uncached — data may change)."""
+    _ensure_db_init_once()
     config = ReconConfig()
-    ensure_database(config)
     conn = duckdb.connect(config.db_path, read_only=True)
     try:
         # Verify table exists

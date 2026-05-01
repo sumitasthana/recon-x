@@ -490,6 +490,110 @@ def _deterministic_classification(state: ReconState) -> list:
             recommended_action="Change filter LogLevel from SILENT to WARN; extract excluded positions.",
         ))
 
+    # ── Config-derived S-series (mirror FR 2590 BRK-S01..S04) ──
+    # These read AxiomSL XML config fields parsed in extract_target.py and
+    # fire BEFORE the data-driven BRK-001..004 above would. They catch a
+    # config drift at the AxiomSL side proactively, even when no data
+    # divergence has surfaced yet.
+
+    # BRK-S01: Silent ingestion filter detected in IngestionFilters.xml.
+    # Distinct from BRK-004: this fires on the *config* presence of any
+    # LogLevel=SILENT rule, regardless of whether positions have been
+    # excluded yet — early-warning, not consequence.
+    silent_filter_configs = [f for f in silent_filters
+                             if str(getattr(f, 'log_level', '')).upper() == 'SILENT'
+                             or str(getattr(f, 'action', '')).upper() == 'SILENT']
+    if silent_filter_configs and not any(b.break_id == "BRK-004" for b in breaks):
+        ids = [f.filter_id for f in silent_filter_configs]
+        breaks.append(Break(
+            break_id="BRK-S01",
+            category=BreakCategory.FR2052A_INGESTION_FILTER_CONFIG,
+            severity="MEDIUM",
+            table_assignment="S.D",
+            description=(
+                f"AxiomSL IngestionFilters.xml contains {len(silent_filter_configs)} "
+                f"rule(s) with LogLevel=SILENT ({', '.join(ids)}). No position drops "
+                f"observed yet, but any future match will be invisible from logs."
+            ),
+            source_count=None,
+            target_count=None,
+            notional_impact_usd=None,
+            root_cause=(
+                "Silent filter config present in IngestionFilters.xml. Per Fed Appendix IV, "
+                "exclusions should be auditable; LogLevel=SILENT defeats that."
+            ),
+            recommended_action=(
+                "Change filter LogLevel from SILENT to WARN in AxiomSL config; require "
+                "any new SILENT rule to be approved via change ticket."
+            ),
+        ))
+
+    # BRK-S02: HQLA reference stale by config — uses
+    # target.hqla_ref_last_refresh from AxiomSL XML, not observed downgrades.
+    hqla_last_refresh = getattr(t, 'hqla_ref_last_refresh', None)
+    if hqla_last_refresh and not any(b.break_id == "BRK-002" for b in breaks):
+        try:
+            from datetime import datetime as _dt, timezone as _tz
+            # Tolerant ISO parsing — strip Z suffix Bedrock LLM sometimes returns
+            iso = str(hqla_last_refresh).replace('Z', '+00:00')
+            last = _dt.fromisoformat(iso)
+            now = _dt.now(_tz.utc) if last.tzinfo else _dt.now()
+            stale_days = (now - last).days
+        except Exception:
+            stale_days = None
+        if stale_days is not None and stale_days > 7:
+            breaks.append(Break(
+                break_id="BRK-S02",
+                category=BreakCategory.FR2052A_HQLA_REF_STALE_CONFIG,
+                severity="HIGH" if stale_days > 30 else "MEDIUM",
+                table_assignment="I.A",
+                description=(
+                    f"AxiomSL HQLA_ELIGIBILITY_REF.LastRefreshDate is {stale_days} days old "
+                    f"({hqla_last_refresh}). New CUSIPs from recent Fed bulletins likely missing."
+                ),
+                source_count=None,
+                target_count=None,
+                notional_impact_usd=None,
+                root_cause=(
+                    "AxiomSL's own HQLA reference table refresh job is overdue. Even if no "
+                    "downgrades are observed today, classification is unreliable until refresh."
+                ),
+                recommended_action=(
+                    "Trigger HQLA_ELIGIBILITY_REF refresh in AxiomSL; align refresh cadence with "
+                    "Fed bulletin publication schedule."
+                ),
+            ))
+
+    # BRK-S03: FX source config drift — Snowflake and AxiomSL have
+    # *configured* different FX feeds, even before any position revaluation
+    # delta is observed. Distinct from BRK-001 which fires on observed FX
+    # rate-source mismatch in the recon dataset.
+    if (s_fx_rate_source and t_fx_rate_source
+        and s_fx_rate_source != t_fx_rate_source
+        and not any(b.break_id == "BRK-001" for b in breaks)):
+        breaks.append(Break(
+            break_id="BRK-S03",
+            category=BreakCategory.FR2052A_FX_SOURCE_CONFIG_DRIFT,
+            severity="HIGH",
+            table_assignment="O.W",
+            description=(
+                f"FX rate source configuration drift: Snowflake pipeline configured for "
+                f"'{s_fx_rate_source}', AxiomSL configured for '{t_fx_rate_source}'. "
+                f"Re-conversion will produce material variance on all non-USD positions."
+            ),
+            source_count=None,
+            target_count=None,
+            notional_impact_usd=None,
+            root_cause=(
+                "AxiomSL FX config and Snowflake DIM_FX_RATE.rate_source diverged — typically "
+                "after an unilateral AxiomSL config update without a matching Snowflake change."
+            ),
+            recommended_action=(
+                "Pick one canonical FX source and align both systems; gate AxiomSL FX-config "
+                "changes behind a Snowflake-side compatibility check."
+            ),
+        ))
+
     return breaks
 
 

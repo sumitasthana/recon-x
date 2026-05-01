@@ -51,7 +51,7 @@ function TierBanner({ tier, count }) {
     <div className="flex items-center gap-2 mb-2.5">
       <span className="w-2 h-2 rounded-full" style={{ background: TIER_DOT[tier] }} />
       <span className="text-[10px] font-semibold uppercase tracking-wider text-g-700">
-        Tier — {TIER_LABEL[tier]}
+        {TIER_LABEL[tier]}
       </span>
       <span className="text-[10px] text-g-400 font-mono">{count}</span>
       <div className="flex-1 h-px bg-g-200" />

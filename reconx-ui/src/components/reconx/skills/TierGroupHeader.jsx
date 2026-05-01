@@ -1,8 +1,6 @@
 import React from 'react';
 import { TIER_DOT, TIER_LABEL, TIER_DESCRIPTION } from './tokens';
 
-const TIER_INDEX = { baseline: 0, platform: 1, domain: 2, client: 3 };
-
 export default function TierGroupHeader({ tier, count }) {
   return (
     <tr className="bg-g-50 border-y border-g-200">
@@ -13,7 +11,7 @@ export default function TierGroupHeader({ tier, count }) {
             style={{ background: TIER_DOT[tier] }}
           />
           <span className="text-[10px] font-semibold uppercase tracking-wider text-g-700">
-            Tier {TIER_INDEX[tier]} — {TIER_LABEL[tier]}
+            {TIER_LABEL[tier]}
           </span>
           <span className="text-[11px] text-g-400 font-light">
             {TIER_DESCRIPTION[tier]}

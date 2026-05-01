@@ -230,10 +230,14 @@ function normCat(cat) {
 }
 
 const CAT_COLORS = {
-  // FR 2052a
+  // FR 2052a (data-driven)
   FX_RATE_SOURCE_MISMATCH:      C.red,
   HQLA_REF_STALE:               C.amber,
   CPTY_REF_SYNC_LAG:            C.blue,
+  // FR 2052a (config-derived from AxiomSL XML)
+  INGESTION_FILTER_CONFIG:      C.purple,
+  HQLA_REF_STALE_CONFIG:        C.amber,
+  FX_SOURCE_CONFIG_DRIFT:       C.red,
   // FR 2590 SCCL
   CPTY_HIERARCHY_MISMATCH:      C.blue,
   NETTING_SET_DIVERGENCE:       C.amber,
@@ -266,6 +270,21 @@ const CATEGORY_GLOSSARY = {
     'to AxiomSL’s CPTY_REF table. AxiomSL’s UNMAPPED_CPTY_EXCL filter then drops the ' +
     'position with a warning, so it never reaches the regulatory schedule. Typical fix: ' +
     'sync the counterparty master before the next ingestion run. Affects schedule S.D.',
+
+  // ── FR 2052a — config-derived (parsed from AxiomSL XML) ──
+  INGESTION_FILTER_CONFIG:
+    'Proactive variant of SILENT_EXCLUSION. AxiomSL’s IngestionFilters.xml contains a rule ' +
+    'with LogLevel=SILENT, but no positions have been dropped yet. Catches the bad config ' +
+    'before it causes invisible exclusions. The fix is the same — change LogLevel to WARN ' +
+    'and require new SILENT rules to be approved.',
+  HQLA_REF_STALE_CONFIG:
+    'Proactive variant of HQLA_REF_STALE. AxiomSL’s HQLA_ELIGIBILITY_REF table has not been ' +
+    'refreshed in over 7 days. Even if no downgrades show up in today’s data, classification ' +
+    'is unreliable until the refresh runs. Severity escalates to HIGH past 30 days.',
+  FX_SOURCE_CONFIG_DRIFT:
+    'Proactive variant of FX_RATE_SOURCE_MISMATCH. Snowflake and AxiomSL are *configured* ' +
+    'for different FX rate feeds (e.g., Bloomberg BFIX vs ECB), even before today’s ' +
+    're-conversion has produced an observable variance. Pick one canonical source and align.',
 
   // ── FR 2590 SCCL (Single-Counterparty Credit Limits) ──
   CPTY_HIERARCHY_MISMATCH:

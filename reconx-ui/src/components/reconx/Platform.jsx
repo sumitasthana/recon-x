@@ -220,7 +220,106 @@ function AgentCard({ agent, accent, prominent }) {
   );
 }
 
+/* ── Agent Studio — two-level navigation ────────────────
+   Level 1: product picker (LogicX / CodeX / ReconX / DQX).
+            Only ReconX is active in this build; the other three are
+            grayed-out placeholders for future agent products in the
+            same family.
+   Level 2: clicking ReconX opens the supervisor + specialists tree
+            (the existing AgentStudio body, now ReconXAgentDetail).
+*/
+
+const AGENT_PRODUCTS = [
+  {
+    id: 'logicx',
+    name: 'LogicX',
+    description: 'Business-rule and decisioning agent. Encodes policy logic and arbitrates rule conflicts.',
+    active: false,
+  },
+  {
+    id: 'codex',
+    name: 'CodeX',
+    description: 'Code-generation agent. Drafts SQL, ETL transforms, and migration scripts under review.',
+    active: false,
+  },
+  {
+    id: 'reconx',
+    name: 'ReconX',
+    description: 'Regulatory reconciliation agent — supervisor + specialists for FR 2052a, FR 2590, and beyond.',
+    active: true,
+  },
+  {
+    id: 'dqx',
+    name: 'DQX',
+    description: 'Data-quality agent. Profiles incoming data, flags drift, and proposes validation rules.',
+    active: false,
+  },
+];
+
 function AgentStudio() {
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  if (selectedProduct === 'reconx') {
+    return <ReconXAgentDetail onBack={() => setSelectedProduct(null)} />;
+  }
+  return <AgentProductPicker onPick={setSelectedProduct} />;
+}
+
+function AgentProductPicker({ onPick }) {
+  return (
+    <>
+      <div className="mb-4">
+        <div className="text-[14px] font-medium text-g-800">Agent products</div>
+        <div className="text-[11px] text-g-400 font-light">
+          Select an agent product to inspect its supervisor, specialists, and skills.
+          Only ReconX is active in this build.
+        </div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+        {AGENT_PRODUCTS.map((p) => (
+          <ProductCard key={p.id} product={p} onPick={onPick} />
+        ))}
+      </div>
+    </>
+  );
+}
+
+function ProductCard({ product, onPick }) {
+  const { id, name, description, active } = product;
+  return (
+    <button
+      onClick={() => active && onPick(id)}
+      disabled={!active}
+      className="card text-left p-4 transition-all"
+      style={{
+        opacity: active ? 1 : 0.5,
+        cursor: active ? 'pointer' : 'not-allowed',
+        borderTop: active ? '3px solid #1a7f4b' : '3px solid #e5e7eb',
+      }}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[15px] font-medium text-g-900">{name}</span>
+        {active && (
+          <span
+            className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded"
+            style={{ background: '#e6f5ee', color: '#1a7f4b', border: '1px solid #86c5a4' }}
+          >
+            Active
+          </span>
+        )}
+      </div>
+      <div className="text-[12px] text-g-600 leading-[1.55] font-light">
+        {description}
+      </div>
+      {active && (
+        <div className="text-[11px] text-status-blue mt-3 font-medium">
+          Inspect agents →
+        </div>
+      )}
+    </button>
+  );
+}
+
+function ReconXAgentDetail({ onBack }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -237,10 +336,18 @@ function AgentStudio() {
 
   return (
     <>
+      {/* Back link to product picker */}
+      <button
+        onClick={onBack}
+        className="text-[11px] text-g-500 hover:text-g-800 mb-3 flex items-center gap-1"
+      >
+        ← Agent products
+      </button>
+
       {/* Top-line metrics */}
       <div className="grid grid-cols-4 gap-3 mb-6">
         <MetricCard label="Registered agents" value={agents.length || '—'} sub="auto-discovered from prompt.yaml" />
-        <MetricCard label="Chat tree" value={(supervisor ? 1 : 0) + specialists.length || '—'}
+        <MetricCard label="Supervisor + specialists" value={(supervisor ? 1 : 0) + specialists.length || '—'}
           sub={`${supervisor ? 1 : 0} supervisor + ${specialists.length} specialists`} />
         <MetricCard label="Classifiers" value={classifiers.length || '—'} sub="pipeline classify step" />
         <MetricCard label="Architecture" value="Multi-agent" sub="Supervisor routes via ask_* tools" />
@@ -252,10 +359,10 @@ function AgentStudio() {
         <div className="card p-8 text-center text-[12px] text-g-400">No agents registered.</div>
       ) : (
         <>
-          {/* ── Chat tree: Supervisor → Specialists ── */}
+          {/* ── Registered agents: Supervisor → Specialists ── */}
           <div className="mb-6">
             <div className="text-[10px] font-medium text-g-400 uppercase tracking-wider mb-3">
-              Chat tree
+              Registered agents
             </div>
 
             {supervisor && (
@@ -317,11 +424,25 @@ function AgentStudio() {
    tab simply calls openSkill(id) on row click. */
 
 function SkillsLibrary() {
-  const { skills, health, loading, error, refresh } = useSkillsTelemetry();
+  const { skills: allSkills, health: rawHealth, loading, error, refresh } = useSkillsTelemetry();
   const [mode, setMode] = useState('library');         // 'library' | 'operations'
   const [filter, setFilter] = useState('all');
   const [helpOpen, setHelpOpen] = useState(false);
   const { openSkill } = useSkillPanel();
+
+  // Hide the baseline tier from the library — it's "always loaded"
+  // foundational behaviour, not a user-facing skill choice. Filtering
+  // here keeps both Library and Operations views consistent.
+  const skills = allSkills.filter((s) => s.tier !== 'baseline');
+
+  // Recompute health to match the visible skill set so the tiles don't
+  // contradict the table (e.g., "active: 6" while the list shows 5).
+  const health = rawHealth ? {
+    ...rawHealth,
+    active_count:    skills.length,
+    fired_24h_count: skills.filter((s) => (s.hits_24h || 0) > 0).length,
+    stale_count:     skills.filter((s) => s.is_stale).length,
+  } : null;
 
   return (
     <>
@@ -879,42 +1000,49 @@ function BudgetCaching() {
   );
 }
 
-/* ── Main ───────────────────────────────────────────── */
+/* ── Sub-section exports ────────────────────────────────
+   Routing now lives in App.jsx — the sidebar nav holds 5 sub-items
+   under "Platform workbench" and renders the requested section
+   directly via these named exports. The internal tab-strip header
+   was removed so each section gets the full main-content width. */
+export { AgentStudio, SkillsLibrary, PromptStudio, DataPipelines, BudgetCaching };
 
-export default function Platform() {
-  const [activeTab, setActiveTab] = useState('agents');
+// Section metadata, reused by the sidebar.
+// (Budget & Caching was removed from the workbench surface; the
+// BudgetCaching component is kept in this file as dormant code in case
+// it's reinstated later — drop the export below if you want it gone.)
+export const PLATFORM_SECTIONS = [
+  { id: 'agents',    label: 'Agent Studio',   subtitle: 'Supervisor + specialists' },
+  { id: 'skills',    label: 'Skills library', subtitle: 'Knowledge skills + telemetry' },
+  { id: 'prompts',   label: 'Prompt studio',  subtitle: 'Edit agent prompt YAML' },
+  { id: 'pipelines', label: 'Data pipelines', subtitle: 'DuckDB / FAISS / SQLite' },
+];
 
+const SECTION_BY_ID = {
+  agents:    AgentStudio,
+  skills:    SkillsLibrary,
+  prompts:   PromptStudio,
+  pipelines: DataPipelines,
+};
+
+/**
+ * Routing shell. App.jsx chooses the section via the `section` prop;
+ * this component renders just that section in full width with a
+ * lightweight header (no internal tab strip).
+ *
+ * Falls back to AgentStudio for unknown ids so the page never blanks.
+ */
+export default function Platform({ section = 'agents' }) {
+  const Section = SECTION_BY_ID[section] || AgentStudio;
+  const meta = PLATFORM_SECTIONS.find((s) => s.id === section)
+    || PLATFORM_SECTIONS[0];
   return (
     <div className="p-6">
       <div className="mb-5">
-        <div className="text-[18px] font-medium text-g-900 tracking-tight">Platform workbench</div>
-        <div className="text-[12px] text-g-400 mt-0.5 font-light">
-          Agent infrastructure · skills · prompts · data pipelines
-        </div>
+        <div className="text-[18px] font-medium text-g-900 tracking-tight">{meta.label}</div>
+        <div className="text-[12px] text-g-400 mt-0.5 font-light">{meta.subtitle}</div>
       </div>
-
-      {/* Tabs */}
-      <div className="flex gap-0 border-b border-g-200 mb-5">
-        {PLATFORM_TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className="text-[11px] font-medium px-3.5 py-2 transition-all"
-            style={{
-              color: activeTab === tab.id ? '#0c1f3d' : '#9ca3af',
-              borderBottom: activeTab === tab.id ? '2px solid #0c1f3d' : '2px solid transparent',
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {activeTab === 'agents' && <AgentStudio />}
-      {activeTab === 'budget' && <BudgetCaching />}
-      {activeTab === 'skills' && <SkillsLibrary />}
-      {activeTab === 'prompts' && <PromptStudio />}
-      {activeTab === 'pipelines' && <DataPipelines />}
+      <Section />
     </div>
   );
 }

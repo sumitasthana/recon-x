@@ -14,7 +14,7 @@ import FloatingChat from './components/reconx/FloatingChat';
 /* ── Kratos-inspired components ── */
 import Briefing from './components/reconx/Briefing';
 import AuditLog from './components/reconx/AuditLog';
-import Platform from './components/reconx/Platform';
+import Platform, { PLATFORM_SECTIONS } from './components/reconx/Platform';
 import { SkillPanelProvider } from './components/reconx/skills/SkillPanelContext';
 
 const STEP_DURATION = 6500;
@@ -34,8 +34,17 @@ const NAV_ITEMS = [
 
 const NAV_BOTTOM = [
   { id: 'data', label: 'Source Data' },
-  { id: 'platform', label: 'Platform workbench' },
 ];
+
+// Platform workbench is a sidebar group: header + 5 nested sub-items.
+// Each sub-item maps to an activeTab id of 'platform-<section>' that
+// renders the matching Platform section in full main-content width.
+const PLATFORM_NAV = PLATFORM_SECTIONS.map((s) => ({
+  id: `platform-${s.id}`,
+  sectionId: s.id,
+  label: s.label,
+}));
+const PLATFORM_TAB_IDS = new Set(PLATFORM_NAV.map((n) => n.id));
 
 function App() {
   const [activeTab, setActiveTab] = useState('briefing');
@@ -77,14 +86,29 @@ function App() {
   const startRef = useRef(null);
   const reportRef = useRef(null);
 
-  const statuses = sseStatuses.some((s) => s !== 'pending')
-    ? sseStatuses
-    : reportSteps.map((_, i) => {
-        if (phase !== 'running') return i < reportSteps.length && phase === 'done' ? 'done' : 'pending';
-        if (i < currentStep) return 'done';
-        if (i === currentStep) return 'running';
-        return 'pending';
-      });
+  // ── Visual status driven by local timer, NOT SSE ──
+  // Backend emits `step N running` and `step N done` back-to-back as
+  // soon as a node returns from graph.stream() — the SSE running window
+  // is essentially zero (microseconds). FR 2052a only appeared to
+  // "work" because step 3 (classify) genuinely takes ~8s for the LLM
+  // call. FR 2590's steps all complete in ~1s, so the user never saw
+  // a running state long enough to read messages.
+  //
+  // Drive status + per-step elapsed from the local timer, which paces
+  // the UI at STEP_DURATION (6.5s/step). SSE is still the source of
+  // truth for the final report (delivered separately via apiReport),
+  // and for the "done" transition once the local timer has run out.
+  const localTimerDone =
+    phase === 'running' && currentStep < 0 && reportSteps.length > 0;
+  const statuses = reportSteps.map((_, i) => {
+    if (phase === 'done') return 'done';
+    if (phase !== 'running') return 'pending';
+    // phase === 'running'
+    if (localTimerDone) return 'done';     // timer ran out, waiting on SSE report
+    if (i < currentStep) return 'done';
+    if (i === currentStep) return 'running';
+    return 'pending';
+  });
 
   const handleStart = useCallback(() => {
     if (!selectedReport) return;
@@ -93,23 +117,82 @@ function App() {
     setCurrentStep(0);
     setElapsed(0);
     startRef.current = Date.now();
-    timerRef.current = setInterval(() => setElapsed(Date.now() - startRef.current), 80);
+    // The 80ms ticker is started by the effect below — gated on
+    // activeTab so it doesn't burn re-renders when the user navigates
+    // away during a run.
   }, [selectedReport, reportDate, startRun]);
 
+  // Local 80ms ticker drives the StepCard message scroll. Only runs when
+  // the user is actually viewing the recon tab — the SSE recon itself
+  // continues in the background regardless. When the user returns mid-run,
+  // elapsed is recomputed from startRef so the messages resume in sync.
   useEffect(() => {
-    if (phase !== 'running') { if (timerRef.current) clearInterval(timerRef.current); return; }
+    if (phase !== 'running' || activeTab !== 'recon') {
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+      return;
+    }
+    if (!startRef.current) startRef.current = Date.now();
+    setElapsed(Date.now() - startRef.current);  // resync on return
+    timerRef.current = setInterval(() => {
+      setElapsed(Date.now() - startRef.current);
+    }, 80);
+    return () => {
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    };
+  }, [phase, activeTab]);
+
+  // Derive currentStep from elapsed (only matters while on the recon tab).
+  useEffect(() => {
+    if (phase !== 'running' || activeTab !== 'recon') return;
     const stepIndex = Math.floor(elapsed / STEP_DURATION);
-    if (stepIndex >= reportSteps.length) { clearInterval(timerRef.current); setCurrentStep(-1); return; }
+    if (stepIndex >= reportSteps.length) {
+      if (currentStep !== -1) setCurrentStep(-1);
+      return;
+    }
     if (stepIndex !== currentStep) setCurrentStep(stepIndex);
-  }, [elapsed, phase, currentStep, reportSteps.length]);
+  }, [elapsed, phase, activeTab, currentStep, reportSteps.length]);
 
   useEffect(() => {
-    if (phase === 'done' && apiReport) {
+    if (phase === 'done' && apiReport && activeTab === 'recon') {
       setTimeout(() => reportRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 400);
     }
-  }, [phase, apiReport]);
+  }, [phase, apiReport, activeTab]);
 
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
+
+  // ── Run-completion toast (when user is NOT on the recon tab) ──
+  // Watches phase transitions: if the user kicked off a run and then
+  // navigated away, we surface a small in-app notification when it
+  // finishes. Click → routes back to the recon tab.
+  const prevPhaseRef = useRef(phase);
+  const [runToast, setRunToast] = useState(null);
+
+  useEffect(() => {
+    const prev = prevPhaseRef.current;
+    if (prev === 'running' && phase === 'done' && activeTab !== 'recon') {
+      setRunToast({
+        kind: 'done',
+        title: `${(runningReport || '').toUpperCase()} reconciliation complete`,
+        sub: apiReport
+          ? `${apiReport.total_breaks ?? 0} breaks · score ${(apiReport.recon_score ?? 0).toFixed(0)}`
+          : '',
+      });
+    }
+    if (prev === 'running' && phase === 'error' && activeTab !== 'recon') {
+      setRunToast({
+        kind: 'error',
+        title: `${(runningReport || '').toUpperCase()} reconciliation failed`,
+        sub: apiError || 'See the Reconciliation tab for details.',
+      });
+    }
+    prevPhaseRef.current = phase;
+  }, [phase, activeTab, runningReport, apiReport, apiError]);
+
+  useEffect(() => {
+    if (!runToast) return;
+    const id = setTimeout(() => setRunToast(null), 8000);
+    return () => clearTimeout(id);
+  }, [runToast]);
 
   const stepElapsed = currentStep >= 0 ? elapsed - currentStep * STEP_DURATION : 0;
   const selectedReportInfo = availableReports.find((r) => r.id === selectedReport);
@@ -151,6 +234,42 @@ function App() {
     </button>
   );
 
+  /* Platform workbench group: header is a plain label (clickable as a
+     convenience shortcut to Agent Studio) + 5 indented sub-items. Only
+     the active sub-item carries the highlight — the parent stays
+     neutral so we don't get the "two things lit at once" effect. */
+  const PlatformGroup = ({ activeTab, onPick }) => {
+    return (
+      <>
+        <button
+          onClick={() => onPick(PLATFORM_NAV[0].id)}
+          className="w-full flex items-center gap-2 py-[7px] px-2.5 rounded-md text-[13px] text-left text-g-600 hover:bg-g-50 transition-colors"
+        >
+          Platform workbench
+        </button>
+        <div className="ml-2.5 pl-2.5 border-l border-g-200 space-y-px">
+          {PLATFORM_NAV.map((sub) => {
+            const isActive = activeTab === sub.id;
+            return (
+              <button
+                key={sub.id}
+                onClick={() => onPick(sub.id)}
+                className="w-full flex items-center py-[5px] px-2.5 rounded-md text-[12px] text-left transition-all"
+                style={{
+                  background: isActive ? '#e8eef7' : 'transparent',
+                  color: isActive ? '#0c1f3d' : '#6b7280',
+                  fontWeight: isActive ? 500 : 400,
+                }}
+              >
+                {sub.label}
+              </button>
+            );
+          })}
+        </div>
+      </>
+    );
+  };
+
   return (
     <SkillPanelProvider
       onJumpToBreak={(brk) => {
@@ -168,13 +287,33 @@ function App() {
       <div className="h-[52px] flex items-center justify-between px-6 flex-shrink-0 z-200"
         style={{ background: '#0c1f3d', borderBottom: '1px solid rgba(255,255,255,.06)' }}>
         <div className="flex items-center gap-2">
-          <span className="text-[18px] font-medium text-white tracking-tight">
-            Recon<span style={{ color: '#e85d20' }}>X</span>
+          <span className="text-[14px] font-medium text-white tracking-tight whitespace-nowrap">
+            Reconciliation Tool Built for Mizuho
+            <span className="text-white/50 font-light mx-1.5">·</span>
+            Powered by Recon<span style={{ color: '#e85d20' }}>X</span>
           </span>
         </div>
         <div className="flex items-center gap-2.5">
-          <span className="text-[12px] text-white/40 font-light">Regulatory Reconciliation</span>
-          <div className="w-px h-3 bg-white/15" />
+          {/* Running indicator — visible across all tabs while a recon is
+              in flight. Click → jumps to the recon tab. */}
+          {phase === 'running' && runningReport && activeTab !== 'recon' && (
+            <button
+              onClick={() => setActiveTab('recon')}
+              className="flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full transition-all"
+              style={{
+                background: 'rgba(232,93,32,.18)',
+                border: '1px solid #e85d20',
+                color: '#fff',
+              }}
+              title="Reconciliation in progress — click to view"
+            >
+              <span
+                className="w-1.5 h-1.5 rounded-full animate-pulse-dot"
+                style={{ background: '#e85d20' }}
+              />
+              {(runningReport || '').toUpperCase()} running
+            </button>
+          )}
           <span className="text-[11px] text-white/30 font-light">
             {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
           </span>
@@ -259,12 +398,14 @@ function App() {
             {NAV_BOTTOM.map((item) => (
               <NavItem key={item.id} item={item} isActive={activeTab === item.id} onClick={() => setActiveTab(item.id)} />
             ))}
+
+            {/* Platform workbench — group header + 5 nested sub-items */}
+            <PlatformGroup
+              activeTab={activeTab}
+              onPick={setActiveTab}
+            />
           </div>
 
-          {/* Version */}
-          <div className="mt-auto border-t border-g-100 px-4 py-2.5 text-[11px] text-g-400 font-light">
-            ReconX v2.0 — Multi-agent · LangGraph
-          </div>
         </aside>
 
         {/* ════════ MAIN CONTENT ════════ */}
@@ -273,7 +414,9 @@ function App() {
           {activeTab === 'briefing' && <Briefing onNavigate={setActiveTab} />}
           {activeTab === 'observatory' && <Observatory reportType={activeRegulation} reconPhase={rawPhase} />}
           {activeTab === 'auditlog' && <AuditLog reportType={activeRegulation} />}
-          {activeTab === 'platform' && <Platform />}
+          {PLATFORM_TAB_IDS.has(activeTab) && (
+            <Platform section={activeTab.replace(/^platform-/, '')} />
+          )}
           {activeTab === 'data' && <SourceData report={activeRegulation} />}
 
           {/* ── Reconciliation ── */}
@@ -381,6 +524,44 @@ function App() {
         breakCount={apiReport?.total_breaks}
         onUnreadChange={setUnreadCount}
       />
+
+      {/* Run-completion toast — appears top-right when a recon finishes
+          and the user is on a different tab. Click to jump back. */}
+      {runToast && (
+        <div
+          role="alert"
+          onClick={() => { setActiveTab('recon'); setRunToast(null); }}
+          style={{
+            position: 'fixed', top: 70, right: 16, zIndex: 300,
+            background: '#fff',
+            border: '1px solid #e5e7eb',
+            borderLeft: `3px solid ${runToast.kind === 'error' ? '#b91c1c' : '#1a7f4b'}`,
+            borderRadius: 10,
+            boxShadow: '0 6px 20px rgba(0,0,0,.12)',
+            padding: '12px 14px',
+            cursor: 'pointer',
+            maxWidth: 320,
+            animation: 'rx-fadein 0.2s ease-out',
+          }}
+        >
+          <div className="flex items-center justify-between gap-2 mb-0.5">
+            <span className="text-[12px] font-medium text-g-900">{runToast.title}</span>
+            <button
+              onClick={(e) => { e.stopPropagation(); setRunToast(null); }}
+              className="text-[14px] text-g-400 hover:text-g-700"
+              aria-label="Dismiss"
+            >
+              ×
+            </button>
+          </div>
+          {runToast.sub && (
+            <div className="text-[11px] text-g-500 font-light">{runToast.sub}</div>
+          )}
+          <div className="text-[10px] text-status-blue mt-1.5 font-medium">
+            View report →
+          </div>
+        </div>
+      )}
     </div>
     </SkillPanelProvider>
   );

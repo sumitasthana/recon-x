@@ -13,11 +13,18 @@ class BreakCategory(str, Enum):
     works for string comparisons (and JSON serialisation is trivial).
     """
 
-    # --- FR 2052a ---
+    # --- FR 2052a (data-driven) ---
     FR2052A_FX_RATE_SOURCE_MISMATCH = "FR2052A_FX_RATE_SOURCE_MISMATCH"
     FR2052A_HQLA_REF_STALE = "FR2052A_HQLA_REF_STALE"
     FR2052A_CPTY_REF_SYNC_LAG = "FR2052A_CPTY_REF_SYNC_LAG"
     FR2052A_SILENT_EXCLUSION = "FR2052A_SILENT_EXCLUSION"
+    # --- FR 2052a (config-derived from AxiomSL XML) ---
+    # These mirror FR 2590's S-series rules. They fire BEFORE the data-driven
+    # ones above, catching a config drift proactively rather than after the
+    # data divergence shows up.
+    FR2052A_INGESTION_FILTER_CONFIG = "FR2052A_INGESTION_FILTER_CONFIG"
+    FR2052A_HQLA_REF_STALE_CONFIG   = "FR2052A_HQLA_REF_STALE_CONFIG"
+    FR2052A_FX_SOURCE_CONFIG_DRIFT  = "FR2052A_FX_SOURCE_CONFIG_DRIFT"
 
     # --- FR 2590 ---
     FR2590_CPTY_HIERARCHY_MISMATCH = "FR2590_CPTY_HIERARCHY_MISMATCH"
